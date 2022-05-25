@@ -1,5 +1,9 @@
 # Build the manager binary
+<<<<<<< HEAD
 FROM registry.access.redhat.com/ubi8/go-toolset:1.17.7
+=======
+FROM golang:1.17 as builder
+>>>>>>> 051d898 (Create operator scaffolding with operator-sdk 1.21)
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -19,7 +23,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
+<<<<<<< HEAD
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.6
+=======
+FROM gcr.io/distroless/static:nonroot
+>>>>>>> 051d898 (Create operator scaffolding with operator-sdk 1.21)
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
