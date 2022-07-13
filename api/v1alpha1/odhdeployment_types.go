@@ -74,6 +74,8 @@ type Component struct {
 	// reconcile if set to False, will allow user to make any changes to the Resources
 	// Additionally when reconcile field is set to False, an update in version won't update the manifests for the given component.
 	Reconcile bool `json:"reconcile"`
+	//
+	Type string `json:"type"`
 }
 
 // Repo defines the manifest repository for all the components
