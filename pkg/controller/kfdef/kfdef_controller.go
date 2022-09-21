@@ -23,6 +23,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,6 +53,7 @@ const (
 	deleteConfigMapLabel = "api.openshift.com/addon-managed-odh-delete"
 	// odhGeneratedNamespaceLabel is the label added to all the namespaces genereated by odh-deployer
 	odhGeneratedNamespaceLabel = "opendatahub.io/generated-namespace"
+	odhDashboardLabel = "opendatahub.io/dashboardcrd"
 )
 
 // kfdefInstances keep all KfDef CRs watched by the operator
@@ -652,6 +654,34 @@ func (r *ReconcileKfDef) operatorUninstall(request reconcile.Request) error {
 			r.recorder.Eventf(&namespace, v1.EventTypeNormal, "NamespaceDeletionSuccessful",
 				"Namespace %s deleted as a part of uninstall.", namespace.Name)
 			log.Infof("Namespace %s deleted as a part of uninstall.", namespace.Name)
+		}
+	}
+
+	log.Infof("Removing Dashboard specific CRDs")
+	dashboardCRDs := &apiextv1.CustomResourceDefinitionList{}
+	crdOptions := []client.ListOption{
+		client.MatchingLabels{odhDashboardLabel: "true"},
+	}
+
+	// Delete all Dashboard specific CRDs
+	// Note: Ensure that operator does not throw error if it fails to delete
+	// Dashboard CRDs.
+	if err := r.client.List(context.TODO(), dashboardCRDs, crdOptions...); err != nil {
+		if !errors.IsNotFound(err) {
+			 log.Infof("error getting Dashboard CRDs : %v", err)
+		}
+	}
+
+	// Delete all the active namespaces
+	if len(dashboardCRDs.Items) != 0 {
+		for _, crd := range dashboardCRDs.Items {
+			if err := r.client.Delete(context.TODO(), &crd, []client.DeleteOption{}...); err != nil {
+				log.Infof("error deleting Dashboard CRD %v: %v", crd.Name, err)
+			}else {
+				r.recorder.Eventf(&crd, v1.EventTypeNormal, "CRDDeletionSuccessful",
+					"CRD %s deleted as a part of uninstall.", crd.Name)
+				log.Infof("CRD %s deleted as a part of uninstall.", crd.Name)
+			}
 		}
 	}
 
