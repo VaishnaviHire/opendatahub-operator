@@ -3,6 +3,7 @@ package apps
 import (
 	v1 "github.com/kubeflow/kfctl/v3/pkg/apis/apps/kfdef/v1"
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiserv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
@@ -11,5 +12,6 @@ func init() {
 	AddToSchemes = append(AddToSchemes,
 		v1.SchemeBuilder.AddToScheme,
 		operatorsv1alpha1.AddToScheme,
-		apiserv1.AddToScheme)
+		apiserv1.AddToScheme,
+		apiextv1.AddToScheme)
 }

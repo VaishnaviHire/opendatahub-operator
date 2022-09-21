@@ -63,7 +63,7 @@ require (
 	k8s.io/kubernetes v1.16.2
 	sigs.k8s.io/controller-runtime v0.6.3
 	sigs.k8s.io/kustomize/v3 v3.2.0
-	sigs.k8s.io/yaml v1.1.0
+	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (
@@ -81,7 +81,7 @@ replace (
 	github.com/russross/blackfriday => github.com/russross/blackfriday v1.5.2-0.20180428102519-11635eb403ff // indirect
 	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
 	k8s.io/api => k8s.io/api v0.0.0-20190620084959-7cf5895f2711
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.0.0-20190620085554-14e95df34f1f
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.16.4
 	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20190612205821-1799e75a0719
 	k8s.io/apiserver => k8s.io/apiserver v0.0.0-20190620085212-47dc9a115b18
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.0.0-20190620085706-2090e6d8f84c

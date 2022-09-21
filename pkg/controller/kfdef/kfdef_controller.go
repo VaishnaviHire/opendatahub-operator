@@ -23,7 +23,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -658,21 +658,21 @@ func (r *ReconcileKfDef) operatorUninstall(request reconcile.Request) error {
 	}
 
 	log.Infof("Removing Dashboard specific CRDs")
-	dashboardCRDs := &apiextv1.CustomResourceDefinitionList{}
-	crdOptions := []client.ListOption{
-		client.MatchingLabels{odhDashboardLabel: "true"},
+	dashboardCRDs := &apiextv1.CustomResourceDefinitionList{
+		TypeMeta: TypeMeta,
+
 	}
 
 	// Delete all Dashboard specific CRDs
 	// Note: Ensure that operator does not throw error if it fails to delete
 	// Dashboard CRDs.
-	if err := r.client.List(context.TODO(), dashboardCRDs, crdOptions...); err != nil {
+	if err := r.client.List(context.TODO(), dashboardCRDs); err != nil {
 		if !errors.IsNotFound(err) {
 			 log.Infof("error getting Dashboard CRDs : %v", err)
 		}
 	}
 
-	// Delete all the active namespaces
+	// Delete all Dashboard CRDs
 	if len(dashboardCRDs.Items) != 0 {
 		for _, crd := range dashboardCRDs.Items {
 			if err := r.client.Delete(context.TODO(), &crd, []client.DeleteOption{}...); err != nil {
@@ -686,7 +686,8 @@ func (r *ReconcileKfDef) operatorUninstall(request reconcile.Request) error {
 	}
 
 	log.Info("All resources deleted as part of uninstall. Removing the operator csv")
-	return removeCsv(r.client, r.restConfig)
+	return nil
+	//return removeCsv(r.client, r.restConfig)
 }
 
 // hasDeleteConfigMap returns true if delete configMap is added to the operator namespace by managed-tenants repo.
