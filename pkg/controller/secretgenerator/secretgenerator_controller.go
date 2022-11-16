@@ -28,7 +28,7 @@ import (
 const (
 	resourceRetryInterval = 10 * time.Second
 	resourceRetryTimeout  = 1 * time.Minute
-	)
+)
 
 // ReconcileSecretGenerator holds the controller configuration
 type ReconcileSecretGenerator struct {
@@ -107,6 +107,7 @@ func (r *ReconcileSecretGenerator) Reconcile(request reconcile.Request) (reconci
 	err := r.client.Get(context.TODO(), request.NamespacedName, foundSecret)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
+			log.Infof("secret deleted oauth: %v", err)
 			// If Secret is deleted, delete OAuthClient if exists
 			err = r.deleteOAuthClient(request.Name)
 		}
@@ -158,7 +159,7 @@ func (r *ReconcileSecretGenerator) Reconcile(request reconcile.Request) (reconci
 				}
 				// Generate OAuthClient for the generated secret
 				log.Infof("Generating an oauth client resource for %v route", oauthClientRoute.Name)
-				err = r.createOAuthClient(foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
+				err = r.createOrUpdateOAuthClient(foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
 				if err != nil {
 					log.Errorf("error creating oauth client resource: %v. Recreate Secret : %v", err,
 						foundSecret.Name)
@@ -199,9 +200,8 @@ func (r *ReconcileSecretGenerator) getRoute(name string, namespace string) (*rou
 	return route, err
 }
 
-func (r *ReconcileSecretGenerator) createOAuthClient(name string, secret string, uri string) error {
-	// Create OAuthClient resource
-	oauthClient := &ocv1.OAuthClient{
+func (r *ReconcileSecretGenerator) createOrUpdateOAuthClient(name string, secret string, uri string) error {
+	desiredOauthClient := &ocv1.OAuthClient{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -211,31 +211,48 @@ func (r *ReconcileSecretGenerator) createOAuthClient(name string, secret string,
 		GrantMethod:  ocv1.GrantHandlerAuto,
 	}
 
-	err := r.client.Create(context.TODO(), oauthClient)
-	if err != nil {
-		if k8serrors.IsAlreadyExists(err) {
-			log.Infof("OAuth client resource %v already exists", oauthClient.Name)
-			return nil
+	oauthClientList := &ocv1.OAuthClientList{}
+	err := r.client.List(context.TODO(), oauthClientList)
+
+	alreadyExists := false
+	for _, oauthClient := range oauthClientList.Items {
+		if oauthClient.Name == name {
+			// Update OAuthClient resource
+			alreadyExists = true
+			oauthClient.Secret = secret
+			oauthClient.RedirectURIs = []string{"https://" + uri}
+			err := r.client.Update(context.TODO(), &oauthClient)
+			if err != nil {
+				return fmt.Errorf("error updating OAuthClient %v: %v", oauthClient.Name, err)
+			}
+
 		}
 	}
+
+	// Create OAuthClient resource
+	if !alreadyExists {
+		err = r.client.Create(context.TODO(), desiredOauthClient)
+	}
 	return err
+
 }
 
 func (r *ReconcileSecretGenerator) deleteOAuthClient(secretName string) error {
-	oauthClient := &ocv1.OAuthClient{}
-
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: secretName},oauthClient)
+	oauthClientList := &ocv1.OAuthClientList{}
+	err := r.client.List(context.TODO(), oauthClientList)
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil
+		return fmt.Errorf("error listing OAuthClient :%v", err)
+	}
+
+	for _, oauthClient := range oauthClientList.Items {
+		if oauthClient.Name == secretName {
+			err := r.client.Delete(context.TODO(), &oauthClient)
+			if err != nil {
+				return fmt.Errorf("error deleting OAuthClient %v: %v", oauthClient.Name, err)
+			}
+
 		}
-		return err
 	}
 
-	err = r.client.Delete(context.TODO(), oauthClient)
-	if err != nil {
-		return fmt.Errorf("error deleting OAuthClient %v", oauthClient.Name)
-	}
-
-	return err
+	return nil
 }
