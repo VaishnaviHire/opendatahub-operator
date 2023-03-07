@@ -39,10 +39,21 @@ type KfDefSpec struct {
 	Plugins      []Plugin      `json:"plugins,omitempty"`
 	Secrets      []Secret      `json:"secrets,omitempty"`
 	Repos        []Repo        `json:"repos,omitempty"`
+	Global       Global        `json:"global,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+
+type Global struct {
+	Transformers []Transformer `json:"transformers,omitempty"`
+	//Generators   []Generator   `json:"generators,omitempty"`
+}
+
+type Transformer struct {
+	Name    string   `json:"name,omitempty"`
+	RepoRef *RepoRef `json:"repoRef,omitempty"`
+}
 
 // KfDef is the Schema for the kfdefs API
 type KfDef struct {

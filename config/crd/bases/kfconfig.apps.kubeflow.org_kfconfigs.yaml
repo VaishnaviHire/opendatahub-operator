@@ -79,6 +79,23 @@ spec:
                 type: boolean
               email:
                 type: string
+              global:
+                properties:
+                  transformers:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        repoRef:
+                          properties:
+                            name:
+                              type: string
+                            path:
+                              type: string
+                          type: object
+                      type: object
+                    type: array
+                type: object
               hostname:
                 type: string
               ipName:
@@ -259,6 +276,23 @@ spec:
                 type: boolean
               email:
                 type: string
+              global:
+                properties:
+                  transformers:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        repoRef:
+                          properties:
+                            name:
+                              type: string
+                            path:
+                              type: string
+                          type: object
+                      type: object
+                    type: array
+                type: object
               hostname:
                 type: string
               ipName:

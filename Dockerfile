@@ -18,7 +18,7 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager -ldflags="-X 'github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/kustomize.enableKustAlphaPlugin=yes'" main.go
 
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest

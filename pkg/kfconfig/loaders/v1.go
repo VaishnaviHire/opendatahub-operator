@@ -128,6 +128,17 @@ func (v V1) LoadKfConfig(def interface{}) (*kfconfig.KfConfig, error) {
 		config.Spec.Secrets = append(config.Spec.Secrets, s)
 	}
 
+	for _, transformer := range kfdef.Spec.Global.Transformers {
+		r := kfconfig.Transformer{
+			Name: transformer.Name,
+			RepoRef: &kfconfig.RepoRef{
+				Name: transformer.RepoRef.Name,
+				Path: transformer.RepoRef.Path,
+			},
+		}
+		config.Spec.Global.Transformers = append(config.Spec.Global.Transformers, r)
+	}
+
 	for _, repo := range kfdef.Spec.Repos {
 		r := kfconfig.Repo{
 			Name: repo.Name,
@@ -136,6 +147,17 @@ func (v V1) LoadKfConfig(def interface{}) (*kfconfig.KfConfig, error) {
 		config.Spec.Repos = append(config.Spec.Repos, r)
 	}
 
+	for _, transformer := range config.Spec.Global.Transformers {
+		r := kfdeftypes.Transformer{
+			Name: transformer.Name,
+			RepoRef: &kfdeftypes.RepoRef{
+				Name: transformer.RepoRef.Name,
+				Path: transformer.RepoRef.Path,
+			},
+		}
+		kfdef.Spec.Global.Transformers = append(kfdef.Spec.Global.Transformers, r)
+	}
+	
 	for _, cond := range kfdef.Status.Conditions {
 		c := kfconfig.Condition{
 			Type:               kfconfig.ConditionType(cond.Type),

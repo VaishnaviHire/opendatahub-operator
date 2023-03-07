@@ -66,6 +66,23 @@ spec:
                       type: string
                   type: object
                 type: array
+              global:
+                properties:
+                  transformers:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        repoRef:
+                          properties:
+                            name:
+                              type: string
+                            path:
+                              type: string
+                          type: object
+                      type: object
+                    type: array
+                type: object
               plugins:
                 items:
                   description: Plugin can be used to customize the generation and
@@ -178,5 +195,3 @@ spec:
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}
