@@ -18,12 +18,15 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager -ldflags="-X 'github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/kustomize.enableKustAlphaPlugin=yes'" main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build --trimpath -a -o build/_output/manager -ldflags="-X 'github.com/opendatahub-io/opendatahub-operator/pkg/kfapp/kustomize.enableKustAlphaPlugin=yes'" main.go
 
+RUN cd kustomize-fns/v1alpha1/applyresources && go mod vendor && \
+CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build --trimpath --mod=vendor --buildmode=plugin -o build/_output/plugins/v1alpha1/applyresources/ApplyResources.so ApplyResources.go
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
+COPY --from=builder /opt/build/_output/plugins/ $HOME/.config/kustomize/plugin/
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]
