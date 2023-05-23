@@ -3,4 +3,69 @@ kind: DataScienceCluster
 metadata:
   name: datasciencecluster-sample
 spec:
-  # TODO(user): Add fields here
+  profile: full
+  components:
+    dashboard:
+      enabled: true
+      rbac:
+        admins: cluster-admins
+        users: authenticated-users
+      replicas: 2
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+        config:
+          serving: disable
+      odhNotebookController:
+        enabled: true
+        notebookNamespace: opendatahub-notebooks
+        workbenchImages:
+          managed: true
+        resources:
+          limits:
+            cpu: 500m
+            memory: 4Gi
+          requests:
+            cpu: 500m
+            memory: 256Mi
+      kfNotebookController:
+        enabled: true
+        workbenchImages:
+          managed: true
+        resources:
+          limits:
+            cpu: 500m
+            memory: 4Gi
+          requests:
+            cpu: 500m
+            memory: 256Mi
+      dataSciencePipelinesController:
+        enabled: true
+        replicas: 1
+        resources:
+          limits:
+            cpu: 1
+            memory: 4Gi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+      modelMeshController:
+        enabled: true
+        replicas: 3
+        resources:
+          requests:
+            cpu: 50m
+            memory: 96Mi
+          limits:
+            cpu: "1"
+            memory: 2Gi
+      prometheus:
+        enabled: true
+      grafana:
+        enabled: true
+  sso:
+    openShiftOAuth: true
