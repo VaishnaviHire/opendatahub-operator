@@ -35,7 +35,7 @@ type DataScienceClusterSpec struct {
 	// - workbench: only workbench components are installed
 	Profile string `json:"profile,omitempty"`
 
-	// Components is used to override and fine tune specific component configurations.
+	// Components are used to override and fine tune specific component configurations.
 	Components Components `json:"components,omitempty"`
 }
 
@@ -43,13 +43,22 @@ type Components struct {
 	// Dashboard component configuration
 	Dashboard Dashboard `json:"dashboard,omitempty"`
 
+	// Workbenches component configuration
+	Workbenches Workbenches `json:"workbenches,omitempty"`
+
+	// Serving component configuration
+	Serving Serving `json:"serving,omitempty"`
+
 	// DataServicePipeline component configuration
-	Pipeline Pipeline `json:"dataServicePipeline,omitempty"`
+	Training Training `json:"training,omitempty"`
 }
 
 type Component struct {
 	// enables or disables the component. A disabled component will not be installed.
 	Enabled bool `json:"enabled,omitempty"`
+}
+
+type Controller struct {
 	// number of replicas to deploy for the component
 	Replicas int64 `json:"replicas,omitempty"`
 	// resources to allocate to the component
@@ -58,9 +67,18 @@ type Component struct {
 
 type Dashboard struct {
 	Component `json:""`
+	// List of configurable controllers/deployments
+	Controllers DashboardControllers `json:"controllers,omitempty"`
 }
 
-type Pipeline struct {
+type DashboardControllers struct {
+	DashboardController `json:""`
+}
+type Training struct {
+	Component `json:""`
+}
+
+type Serving struct {
 	Component `json:""`
 }
 
@@ -68,6 +86,46 @@ type Pipeline struct {
 type DataScienceClusterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+}
+
+type Workbenches struct {
+	*Component `json:""`
+	// List of configurable controllers/deployments
+	Controllers WorbenchesControllers `json:"controllers,omitempty"`
+}
+
+type WorbenchesControllers struct {
+	KfNotebookController `json:"kfNotebookController"`
+	NotebookController   `json:"notebookController"`
+}
+type KfNotebookController struct {
+	Controller `json:""`
+	// Other controller specific fields
+}
+
+type NotebookController struct {
+	Controller `json:""`
+	// Other controller specific fields
+}
+
+type DashboardController struct {
+	Controller `json:""`
+	// Other controller specific fields
+}
+
+type ServingControllers struct {
+	ModelMeshController `json:"modelMeshController"`
+	OdhModelController  `json:"odhModelController"`
+}
+
+type ModelMeshController struct {
+	Controller `json:""`
+	// Other controller specific fields
+}
+
+type OdhModelController struct {
+	Controller `json:""`
+	// Other controller specific fields
 }
 
 //+kubebuilder:object:root=true

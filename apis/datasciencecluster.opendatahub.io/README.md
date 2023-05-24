@@ -30,20 +30,21 @@ This is a list of different components provided by ODH. Note that omponents is a
 controllers and custom resources. Every component has the following common fields
 
 - `enabled` : When set to true, all the component resources are deployed.
-- `replicas` : When set to an int value, component controllers will scale to the given value
-- `resources`: Cluster admin can set this value as defined [here](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#resources).
+- `controllers` : List of controllers or deployments belonging to the component. A `controller` will have following configurable fields -
+    - `replicas` : When set to an int value, component controllers will scale to the given value
+    - `resources`: Cluster admin can set this value as defined [here](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#resources).
 
-### spec.components.odhNotebookController
+### spec.components.workbenches
 
 In addition to above fields, `notebooks` has the following component specific fields -
 - `notebookImages.managed` : When set to true, will allow users to use notebooks provided by ODH
 
-### spec.components.modelmeshController
+### spec.components.serving
 
 In addition to above fields, `serving` has the following component specific fields -
 - TBD
 
-### spec.components.dataSciencePipelinesController
+### spec.components.training
 
-In addition to above fields, `training` has the following component specific fields -
+In addition to above fields, `pipelines` has the following component specific fields -
 - TBD
