@@ -1,7 +1,6 @@
 domain: opendatahub.io
 layout:
 - go.kubebuilder.io/v3
-multigroup: true
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
@@ -12,17 +11,9 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
+  domain: opendatahub.io
   group: datasciencecluster.opendatahub.io
   kind: DataScienceCluster
-  path: github.com/opendatahub-io/opendatahub-operator/apis/datasciencecluster.opendatahub.io/v1alpha1
-  version: v1alpha1
-- api:
-    crdVersion: v1
-    namespaced: true
-  controller: true
-  domain: opendatahub.io
-  group: workbench.opendatahub.io
-  kind: WorkBench
-  path: github.com/opendatahub-io/opendatahub-operator/apis/workbench.opendatahub.io/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

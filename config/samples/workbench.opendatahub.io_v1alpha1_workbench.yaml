@@ -1,6 +1,0 @@
-apiVersion: workbench.opendatahub.io.opendatahub.io/v1alpha1
-kind: WorkBench
-metadata:
-  name: workbench-sample
-spec:
-  # TODO(user): Add fields here
