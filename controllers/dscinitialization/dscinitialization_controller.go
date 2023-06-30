@@ -19,9 +19,8 @@ package dscinitialization
 import (
 	"context"
 
-	"errors"
-	logr "github.com/go-logr/logr"
-
+	"github.com/go-logr/logr"
+	"google.golang.org/appengine/log"
 	"k8s.io/apimachinery/pkg/types"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -106,7 +105,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		//Apply osd specific permissions
 		err = deploy.DeployManifestsFromPath(instance, r.Client,
 			deploy.DefaultManifestPath+"/osd-configs",
-			r.ApplicationsNamespace, r.Scheme)
+			r.ApplicationsNamespace, r.Scheme, true)
 		if err != nil {
 			return reconcile.Result{}, err
 		}

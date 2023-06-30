@@ -18,6 +18,7 @@ package datasciencecluster
 
 import (
 	"context"
+
 	"github.com/opendatahub-io/opendatahub-operator/components/profiles"
 
 	corev1 "k8s.io/api/core/v1"
@@ -221,15 +222,11 @@ func (r *DataScienceClusterReconciler) isManagedService() bool {
 
 // TODO: Move this to component package
 func reconcileWorkbench(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *profiles.ReconciliationPlan) error {
-	// check if we need to apply the resources or if they already exist
-	if plan.Dashboard {
-		err := deploy.DeployManifestsFromPath(instance, client,
-			"/opt/odh-manifests/odh-dashboard/base",
-			"opendatahub",
-			scheme, plan.Dashboard)
-		return err
-	}
-	return nil
+	err := deploy.DeployManifestsFromPath(instance, client,
+		"/opt/odh-manifests/odh-dashboard/base",
+		"opendatahub",
+		scheme, plan.Components[profiles.WorkbenchesComponent])
+	return err
 }
 
 func reconcileServing(instance *dsc.DataScienceCluster, client client.Client, scheme *runtime.Scheme, plan *profiles.ReconciliationPlan) error {
