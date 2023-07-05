@@ -1,4 +1,4 @@
-package dashboard
+package modelmeshserving
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/components"
@@ -9,29 +9,27 @@ import (
 )
 
 const (
-	ComponentName = "odh-dashboard"
-	Path          = "/opt/odh-manifests/odh-dashboard/base"
+	ComponentName = "model-mesh"
+	Path          = "/opt/odh-manifests/model-mesh/base"
 )
 
-type Dashboard struct {
+type ModelMeshServing struct {
 	components.Component `json:""`
 }
 
 // Verifies that Dashboard implements ComponentInterface
-var _ components.ComponentInterface = (*Dashboard)(nil)
+var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
-func (d *Dashboard) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
+func (m *ModelMeshServing) ReconcileComponent(owner metav1.Object, client client.Client, scheme *runtime.Scheme, enabled bool, namespace string) error {
 
-	// TODO: Add any additional tasks if required when reconciling component
 	err := deploy.DeployManifestsFromPath(owner, client,
 		Path,
 		namespace,
 		scheme, enabled)
 	return err
-
 }
 
-func (in *Dashboard) DeepCopyInto(out *Dashboard) {
+func (in *ModelMeshServing) DeepCopyInto(out *ModelMeshServing) {
 	*out = *in
 	out.Component = in.Component
 }

@@ -213,4 +213,4 @@ func manageResource(owner metav1.Object, ctx context.Context, cli client.Client,
 	return cli.Patch(ctx, found, client.RawPatch(types.ApplyPatchType, data), client.ForceOwnership, client.FieldOwner(owner.GetName()))
 }
 
-// TODO : Add function to cleanup code created as part of preinstall and post intall task of a component
+// TODO : Add function to cleanup code created as part of pre install and post intall task of a component
