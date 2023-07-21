@@ -3,8 +3,8 @@ kind: Service
 metadata:
   creationTimestamp: null
   labels:
-    control-plane: controller-manager
-  name: redhat-ods-operator-controller-manager-metrics-service
+    app.kubernetes.io/part-of: rhods-operator
+  name: redhat-ods-operator-metrics-service
 spec:
   ports:
   - name: https
@@ -12,6 +12,6 @@ spec:
     protocol: TCP
     targetPort: https
   selector:
-    control-plane: controller-manager
+    app.kubernetes.io/part-of: rhods-operator
 status:
   loadBalancer: {}

@@ -8,8 +8,8 @@ namespace: redhat-ods-operator
 # names of all resources, e.g. a deployment named
 # "wordpress" becomes "alices-wordpress".
 # Note that it should also match with the prefix (text before '-') of the namespace
-# field above.
-namePrefix: redhat-ods-operator-
+# field above. e.g redhat-ods-rhods-operator is the deployment's name
+namePrefix: redhat-ods-
 
 # Labels to add to all resources and selectors.
 #labels:

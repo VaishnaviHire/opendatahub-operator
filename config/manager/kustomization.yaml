@@ -13,4 +13,4 @@ generatorOptions:
 configMapGenerator:
 - files:
   - controller_manager_config.yaml
-  name: manager-config
+  name: operator

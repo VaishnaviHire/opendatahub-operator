@@ -28,7 +28,7 @@ spec:
   sourceType: grpc
   image: quay.io/opendatahub/opendatahub-operator-catalog:$RELEASE_TAG
   displayName: Open Data Hub Operator (Preview)
-  publisher: ODH
+  publisher: RHODS
 EOF
 ```
 
