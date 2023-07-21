@@ -12,7 +12,7 @@ import (
 const (
 	ComponentName          = "workbenches"
 	notebookControllerPath = deploy.DefaultManifestPath + "/odh-notebook-controller/base"
-	notebookImagesPath     = deploy.DefaultManifestPath + "/notebook-images/overlays/additional"
+	notebookImagesPath     = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
 )
 
 var imageParamMap = map[string]string{
