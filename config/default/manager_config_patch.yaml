@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: rhods-operator   #this is for v1 upgrade reason to keep same name
   namespace: system
 spec:
   template:
@@ -17,4 +17,4 @@ spec:
       volumes:
       - name: manager-config
         configMap:
-          name: manager-config
+          name: redhat-ods-operator
