@@ -1,22 +1,18 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
 # Adds namespace to all resources.
-namespace: redhat-ods-operator
+namespace: opendatahub-operator-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
 # "wordpress" becomes "alices-wordpress".
 # Note that it should also match with the prefix (text before '-') of the namespace
 # field above.
-namePrefix: redhat-ods-operator-
+namePrefix: opendatahub-operator-
 
 # Labels to add to all resources and selectors.
-#labels:
+#commonLabels:
 #  someName: someValue
 
-resources:
-- ../additional
+bases:
 - ../crd
 - ../rbac
 - ../manager
@@ -28,9 +24,11 @@ resources:
 # [PROMETHEUS] To enable prometheus monitor, uncomment all sections with 'PROMETHEUS'.
 #- ../prometheus
 
+patchesStrategicMerge:
 # Protect the /metrics endpoint by putting it behind auth.
 # If you want your controller-manager to expose the /metrics
 # endpoint w/o any authn/z, please comment the following line.
+- manager_auth_proxy_patch.yaml
 
 # Mount the controller config file for loading manager configurations
 # through a ComponentConfig type
@@ -46,7 +44,7 @@ resources:
 #- webhookcainjection_patch.yaml
 
 # the following config is for teaching kustomize how to do var substitution
-# replacements:
+vars:
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER' prefix.
 #- name: CERTIFICATE_NAMESPACE # namespace of the certificate CR
 #  objref:
@@ -74,6 +72,3 @@ resources:
 #    kind: Service
 #    version: v1
 #    name: webhook-service
-
-patches:
-- path: manager_auth_proxy_patch.yaml
