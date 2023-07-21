@@ -2,9 +2,13 @@
 ARG GOLANG_VERSION=1.18.9
 ARG USE_LOCAL=false
 
-################################################################################
-FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder_local_false
-# Get all manifests from remote git repo to builder_local_false by script
+FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
+
+ARG MANIFEST_REPO="https://github.com/red-hat-data-services/odh-manifests"
+ARG MANIFEST_RELEASE="main"
+ARG MANIFEST_TARBALL="${MANIFEST_REPO}/tarball/${MANIFEST_RELEASE}"
+
+WORKDIR /workspace
 USER root
 WORKDIR /opt
 COPY get_all_manifests.sh get_all_manifests.sh
