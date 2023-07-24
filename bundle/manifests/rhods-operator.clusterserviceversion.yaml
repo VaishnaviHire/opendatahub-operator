@@ -156,6 +156,7 @@ metadata:
             "notebookController": {
               "enabled": true
             },
+            "templateDisablement": [],
             "templateOrder": []
           }
         }
