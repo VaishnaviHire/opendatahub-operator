@@ -9,8 +9,8 @@ metadata:
       \ \"kind\": \"DataScienceCluster\", \n  \"metadata\":{ \n    \"name\": \"default\"\n
       \ },\n  \"spec\": {}\n}"
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
-    repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v0.0.0
+    repository: https://github.com/red-hat-data-services/rhods-operator
+  name: rhods-operator.v2.0.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -80,9 +80,9 @@ spec:
   - kserve
   - distributed-workloads
   links:
-  - name: Opendatahub Operator
-    url: https://opendatahub.io/
+  - name: Red Hat OpenShift Data Science
+    url: https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-data-science
   maturity: alpha
   provider:
-    name: ODH
-  version: 0.0.1
+    name: Red Hat
+  version: 2.0.0
