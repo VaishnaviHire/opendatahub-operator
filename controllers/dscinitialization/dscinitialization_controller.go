@@ -168,6 +168,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			// no need to log error as it was already logged in createOdhNamespace
 			return reconcile.Result{}, err
 		}
+
+		// Apply rhods-specific config
 		// Create rhods-notebooks namespace
 		err = r.createOdhNamespace(instance, "rhods-notebooks", ctx)
 		if err != nil {
