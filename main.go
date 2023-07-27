@@ -172,7 +172,8 @@ func main() {
 		Spec: dsci.DSCInitializationSpec{
 			ApplicationsNamespace: dscApplicationsNamespace,
 			Monitoring: dsci.Monitoring{
-				Enabled: false,
+				Enabled:   true,
+				Namespace: dscMonitoringNamespace,
 			},
 		},
 	}
