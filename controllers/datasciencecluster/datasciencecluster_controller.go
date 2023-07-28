@@ -157,7 +157,6 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		// no need to log any errors as this is done in the reconcileSubComponent method
 		componentErrorList[modelmeshserving.ComponentName] = err
 	}
-
 	// reconcile CodeFlare component
 	if instance, err = r.reconcileSubComponent(instance, codeflare.ComponentName, instance.Spec.Components.CodeFlare.Enabled, &(instance.Spec.Components.CodeFlare), ctx); err != nil {
 		// no need to log any errors as this is done in the reconcileSubComponent method

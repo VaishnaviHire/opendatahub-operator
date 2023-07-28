@@ -53,12 +53,19 @@ type Components struct {
 	// Kserve component configuration
 	Kserve kserve.Kserve `json:"kserve,omitempty"`
 
+<<<<<<< HEAD
 	// CodeFlare component configuration.
 	// Require CodeFlare operator to be installed before enable component
 	CodeFlare codeflare.CodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
 	// Require CodeFlare operator to be installed before enable component
+=======
+	// CodeFlare component configuration
+	CodeFlare codeflare.CodeFlare `json:"codeflare,omitempty"`
+
+	// Ray component configuration
+>>>>>>> 1c16d59 ([Upstream]: cherry-pick updates)
 	Ray ray.Ray `json:"ray,omitempty"`
 }
 
