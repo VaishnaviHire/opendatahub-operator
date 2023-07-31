@@ -39,12 +39,8 @@ spec:
                 description: Override and fine tune specific component configurations.
                 properties:
                   codeflare:
-<<<<<<< HEAD
-                    description: CodeFlare component configuration Require CodeFlare
+                    description: CodeFlare component configuration. Require CodeFlare
                       operator to be installed before enable component
-=======
-                    description: CodeFlare component configuration
->>>>>>> 1c16d59 ([Upstream]: cherry-pick updates)
                     properties:
                       enabled:
                         description: Set to "true" to enable component, "false" to
@@ -94,12 +90,8 @@ spec:
                     - enabled
                     type: object
                   ray:
-<<<<<<< HEAD
-                    description: Ray component configuration Require CodeFlare operator
+                    description: Ray component configuration. Require CodeFlare operator
                       to be installed before enable component
-=======
-                    description: Ray component configuration
->>>>>>> 1c16d59 ([Upstream]: cherry-pick updates)
                     properties:
                       enabled:
                         description: Set to "true" to enable component, "false" to

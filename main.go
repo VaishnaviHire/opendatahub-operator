@@ -75,15 +75,7 @@ func init() {
 	utilruntime.Must(ocv1.AddToScheme(scheme))
 	utilruntime.Must(kfdefv1.AddToScheme(scheme))
 	utilruntime.Must(ofapi.AddToScheme(scheme))
-<<<<<<< HEAD
-<<<<<<< HEAD
 	utilruntime.Must(ocuserv1.AddToScheme(scheme))
-=======
->>>>>>> b1e799f (Update platform function)
-=======
-	utilruntime.Must(ocuserv1.AddToScheme(scheme))
->>>>>>> 1c16d59 ([Upstream]: cherry-pick updates)
-
 	//+kubebuilder:scaffold:scheme
 }
 

@@ -424,7 +424,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: REPLACE_IMAGE:latest
+                image: quay.io/vhire/opendatahub-operator:dev-1.31
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
