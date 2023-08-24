@@ -51,7 +51,7 @@ metadata:
       }
     operators.operatorframework.io/internal-objects: '[dscinitialization.opendatahub.io]'
     repository: https://github.com/red-hat-data-services/rhods-operator
-  name: rhods-operator.v2.0.0
+  name: rhods-operator.v2.1.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -71,6 +71,9 @@ spec:
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       specDescriptors:
+      - description: Internal development useful field
+        displayName: Manifests Uri
+        path: manifestsUri
       - description: Namespace for applications to be installed, non-configurable,
           default to "redhat-ods-applications"
         displayName: Applications Namespace
@@ -78,9 +81,6 @@ spec:
       - description: Enable monitoring on specified namespace
         displayName: Monitoring
         path: monitoring
-      - description: Internal development useful field
-        displayName: Manifests Uri
-        path: manifestsUri
       statusDescriptors:
       - description: Conditions describes the state of the DSCInitializationStatus
           resource.
@@ -123,4 +123,4 @@ spec:
   minKubeVersion: 1.22.0
   provider:
     name: Red Hat
-  version: 2.0.0
+  version: 2.1.0
