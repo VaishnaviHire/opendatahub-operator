@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	ComponentName  = "model-mesh"
-	Path           = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
-	monitoringPath = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	ComponentName          = "model-mesh"
+	Path                   = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
+	monitoringPath         = deploy.DefaultManifestPath + "/" + "modelmesh-monitoring/base"
+	DependentComponentName = "odh-model-controller"
 )
 
 var imageParamMap = map[string]string{
@@ -66,11 +67,11 @@ var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
 func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := m.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
-
 	// Update Default rolebinding
 	if enabled {
 		// Download manifests and update paths
@@ -90,7 +91,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
 
 	if err != nil {
 		return err
@@ -112,8 +113,21 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	// If modelmesh is deployed successfully, deploy modelmesh-monitoring
-	err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, enabled)
+	if err = deploy.DeployManifestsFromPath(cli, owner, monitoringPath, monitoringNamespace, ComponentName, enabled); err != nil {
+		return err
+	}
 
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods && monitoringEnabled {
+		// first model-mesh rules
+		if err := m.UpdatePrometheusConfig(cli, monitoringEnabled, m.GetComponentName()); err != nil {
+			return err
+		}
+		// then odh-model-controller rules
+		if err := m.UpdatePrometheusConfig(cli, monitoringEnabled, DependentComponentName); err != nil {
+			return err
+		}
+	}
 	return err
 }
 

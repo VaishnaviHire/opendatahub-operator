@@ -37,9 +37,9 @@ COPY main.go main.go
 COPY pkg/ pkg/
 
 # Copy monitoring config
-COPY config/monitoring /opt/odh-manifests/monitoring/
+COPY config/monitoring/ /opt/odh-manifests/monitoring/
 # Copy partners config
-COPY config/partners /opt/odh-manifests/partners/
+COPY config/partners/ /opt/odh-manifests/partners/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go

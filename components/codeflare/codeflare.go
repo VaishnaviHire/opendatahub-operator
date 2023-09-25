@@ -14,7 +14,7 @@ import (
 
 var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + "codeflare-stack" + "/base"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + "codeflare" + "/base"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
@@ -61,11 +61,11 @@ var _ components.ComponentInterface = (*CodeFlare)(nil)
 
 func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := c.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
-
 	if enabled {
 		// Download manifests and update paths
 		if err = c.OverrideManifests(string(platform)); err != nil {
@@ -95,7 +95,18 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 	}
 
 	// Deploy Codeflare
-	err = deploy.DeployManifestsFromPath(cli, owner, CodeflarePath, dscispec.ApplicationsNamespace, c.GetComponentName(), enabled)
+	err = deploy.DeployManifestsFromPath(cli, owner,
+		CodeflarePath,
+		dscispec.ApplicationsNamespace,
+		c.GetComponentName(), enabled)
+
+	// CloudServiceMonitoring handling
+	if platform == deploy.ManagedRhods && monitoringEnabled {
+		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
+		if err = c.UpdatePrometheusConfig(cli, monitoringEnabled, c.GetComponentName()); err != nil {
+			return err
+		}
+	}
 	return err
 
 }

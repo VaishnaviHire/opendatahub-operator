@@ -3,8 +3,13 @@ package components
 import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//	"k8s.io/apimachinery/pkg/runtime"
+	"os"
+	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
 type Component struct {
@@ -65,4 +70,54 @@ type ComponentInterface interface {
 	GetComponentDevFlags() DevFlags
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
+	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
+}
+
+func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, component string) error {
+	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
+	// create a struct to mock poremtheus.yml
+	type ConfigMap struct {
+		APIVersion string `yaml:"apiVersion"`
+		Kind       string `yaml:"kind"`
+		Metadata   struct {
+			Name string `yaml:"name"`
+		} `yaml:"metadata"`
+		Data struct {
+			PrometheusYML string `yaml:"prometheus.yml"`
+		} `yaml:"data"`
+	}
+
+	var configMap ConfigMap
+	// read prometheus.yml from local disk /opt/mainfests&/monitoring/
+	yamlData, err := os.ReadFile(prometheusconfigPath)
+	if err != nil {
+		return err
+	}
+
+	if err := yaml.Unmarshal([]byte(yamlData), &configMap); err != nil {
+		panic(err)
+	}
+	// to add component rules when it is not there yet
+	if enable {
+		// Check if the rule already exists in rule_files
+		ruleExists := strings.Contains(configMap.Data.PrometheusYML, component+"*.rules")
+
+		// Add the new rule only if it doesn't exist
+		if !ruleExists {
+			configMap.Data.PrometheusYML += "\n		" + component + "*.rules"
+		}
+	} else { // to remove component rules if it is there already
+		configMap.Data.PrometheusYML = strings.ReplaceAll(configMap.Data.PrometheusYML, "- "+component+"*.rules\n", "")
+	}
+
+	newyamlData, err := yaml.Marshal(&configMap)
+	if err != nil {
+		panic(err)
+	}
+	// Write the modified content back to the file
+	err = os.WriteFile(prometheusconfigPath, newyamlData, 0)
+	if err != nil {
+		return err
+	}
+	return nil
 }

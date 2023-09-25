@@ -59,7 +59,7 @@ var _ components.ComponentInterface = (*Ray)(nil)
 
 func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := r.GetManagementState() == operatorv1.Managed
-
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -78,7 +78,15 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		}
 	}
 	// Deploy Ray Operator
-	err = deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, r.GetComponentName(), enabled)
+	if err := deploy.DeployManifestsFromPath(cli, owner, RayPath, dscispec.ApplicationsNamespace, r.GetComponentName(), enabled); err != nil {
+		return err
+	}
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods && monitoringEnabled {
+		if err := r.UpdatePrometheusConfig(cli, monitoringEnabled, r.GetComponentName()); err != nil {
+			return err
+		}
+	}
 	return err
 
 }

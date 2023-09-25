@@ -106,11 +106,12 @@ var _ components.ComponentInterface = (*Workbenches)(nil)
 func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
+	enabled := w.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
-	enabled := w.GetManagementState() == operatorv1.Managed
 
 	if enabled {
 		// Download manifests and update paths
@@ -148,26 +149,25 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 	}
 
+	manifestsPath := ""
 	if platform == deploy.OpenDataHub || platform == "" {
-		// only for ODH after transit to kubeflow repo
-		err = deploy.DeployManifestsFromPath(cli, owner,
-			kfnotebookControllerPath,
-			dscispec.ApplicationsNamespace,
-			ComponentName, enabled)
-		if err != nil {
-			return err
-		}
-
-		err = deploy.DeployManifestsFromPath(cli, owner,
-			notebookImagesPath,
-			dscispec.ApplicationsNamespace,
-			ComponentName,
-			enabled)
-		return err
+		manifestsPath = notebookImagesPath
 	} else {
-		err = deploy.DeployManifestsFromPath(cli, owner, notebookImagesPathSupported, dscispec.ApplicationsNamespace, ComponentName, enabled)
+		manifestsPath = notebookImagesPathSupported
+	}
+	if err = deploy.DeployManifestsFromPath(cli, owner,
+		manifestsPath,
+		dscispec.ApplicationsNamespace,
+		w.GetComponentName(), enabled); err != nil {
 		return err
 	}
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods {
+		if err := w.UpdatePrometheusConfig(cli, monitoringEnabled, w.GetComponentName()); err != nil {
+			return err
+		}
+	}
+	return err
 
 }
 

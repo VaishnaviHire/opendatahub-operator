@@ -64,6 +64,8 @@ var _ components.ComponentInterface = (*DataSciencePipelines)(nil)
 
 func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
 	enabled := d.GetManagementState() == operatorv1.Managed
+	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -85,7 +87,13 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 	}
 
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
-	return err
+	// CloudService Monitoring handling
+	if platform == deploy.ManagedRhods && monitoringEnabled {
+		if err := d.UpdatePrometheusConfig(cli, monitoringEnabled, d.GetComponentName()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (d *DataSciencePipelines) DeepCopyInto(target *DataSciencePipelines) {
