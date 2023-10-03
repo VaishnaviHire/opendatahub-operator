@@ -82,8 +82,14 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		return err
 	}
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods && monitoringEnabled {
-		if err := r.UpdatePrometheusConfig(cli, monitoringEnabled, r.GetComponentName()); err != nil {
+	if platform == deploy.ManagedRhods {
+		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, r.GetComponentName()); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			r.GetComponentName()+"prometheus", true); err != nil {
 			return err
 		}
 	}

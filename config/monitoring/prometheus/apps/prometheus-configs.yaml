@@ -8,7 +8,7 @@ data:
   prometheus.yml: |
     rule_files:
       - 'operator-recording.rules'
-      - 'dadmansnitch-alerting.rules'
+      - 'deadmanssnitch-alerting.rules'
 
     global:
       scrape_interval:     10s
@@ -268,7 +268,7 @@ data:
             instance: rhods-controller
           record: controller_runtime_reconcile_total:rate15m
 
-  dadmansnitch-alerting.rules: |
+  deadmanssnitch-alerting.rules: |
     groups:
       - name: DeadManSnitch
         interval: 1m

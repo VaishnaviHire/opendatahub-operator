@@ -101,9 +101,15 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		c.GetComponentName(), enabled)
 
 	// CloudServiceMonitoring handling
-	if platform == deploy.ManagedRhods && monitoringEnabled {
+	if platform == deploy.ManagedRhods {
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
-		if err = c.UpdatePrometheusConfig(cli, monitoringEnabled, c.GetComponentName()); err != nil {
+		if err = c.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, c.GetComponentName()); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			c.GetComponentName()+"prometheus", true); err != nil {
 			return err
 		}
 	}

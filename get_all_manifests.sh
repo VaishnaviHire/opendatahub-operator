@@ -32,7 +32,8 @@ cp -r ./.odh-manifests-tmp/modelmesh-monitoring/ ./odh-manifests
 # Kserve
 cp -r ./.odh-manifests-tmp/kserve/ ./odh-manifests
 # workbench image
-cp -r ./.odh-manifests-tmp/jupyterhub/notebook-images/ ./odh-manifests
+mkdir -p ./odh-manifests/jupyterhub/notebook-images
+cp -r ./.odh-manifests-tmp/jupyterhub/notebook-images/* ./odh-manifests/jupyterhub/notebook-images
 # workbench nbc
 cp -r ./.odh-manifests-tmp/odh-notebook-controller/ ./odh-manifests
 # Trustyai

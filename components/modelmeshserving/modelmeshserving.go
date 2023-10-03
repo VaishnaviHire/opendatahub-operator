@@ -118,13 +118,19 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods && monitoringEnabled {
+	if platform == deploy.ManagedRhods {
 		// first model-mesh rules
-		if err := m.UpdatePrometheusConfig(cli, monitoringEnabled, m.GetComponentName()); err != nil {
+		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, m.GetComponentName()); err != nil {
 			return err
 		}
 		// then odh-model-controller rules
-		if err := m.UpdatePrometheusConfig(cli, monitoringEnabled, DependentComponentName); err != nil {
+		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, DependentComponentName); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			m.GetComponentName()+"prometheus", true); err != nil {
 			return err
 		}
 	}

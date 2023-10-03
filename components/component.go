@@ -6,6 +6,7 @@ import (
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//	"k8s.io/apimachinery/pkg/runtime"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,48 +76,80 @@ type ComponentInterface interface {
 
 func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, component string) error {
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
+	fmt.Println("DEBUG wen: prometheusconfigPath is " + prometheusconfigPath)
 	// create a struct to mock poremtheus.yml
 	type ConfigMap struct {
 		APIVersion string `yaml:"apiVersion"`
 		Kind       string `yaml:"kind"`
 		Metadata   struct {
-			Name string `yaml:"name"`
+			Name      string `yaml:"name"`
+			Namespace string `yaml:"namespace"`
 		} `yaml:"metadata"`
 		Data struct {
 			PrometheusYML string `yaml:"prometheus.yml"`
 		} `yaml:"data"`
 	}
-
 	var configMap ConfigMap
+	// prometheusContent will represent content of prometheus.yml due to its dynamic struct
+	var prometheusContent map[interface{}]interface{}
+
 	// read prometheus.yml from local disk /opt/mainfests&/monitoring/
 	yamlData, err := os.ReadFile(prometheusconfigPath)
 	if err != nil {
 		return err
 	}
-
 	if err := yaml.Unmarshal([]byte(yamlData), &configMap); err != nil {
-		panic(err)
+		return err
 	}
+
+	// get prometheus.yml part from configmap
+	if err := yaml.Unmarshal([]byte(configMap.Data.PrometheusYML), &prometheusContent); err != nil {
+		return err
+	}
+
 	// to add component rules when it is not there yet
 	if enable {
-		// Check if the rule already exists in rule_files
-		ruleExists := strings.Contains(configMap.Data.PrometheusYML, component+"*.rules")
-
-		// Add the new rule only if it doesn't exist
-		if !ruleExists {
-			configMap.Data.PrometheusYML += "\n		" + component + "*.rules"
+		// Check if the rule not yet exists in rule_files
+		if !strings.Contains(configMap.Data.PrometheusYML, component+"*.rules") {
+			// check if have rule_files
+			if ruleFiles, ok := prometheusContent["rule_files"]; ok {
+				if ruleList, isList := ruleFiles.([]interface{}); isList {
+					// add new component rules back to rule_files
+					ruleList = append(ruleList, component+"*.rules")
+					prometheusContent["rule_files"] = ruleList
+				}
+			}
 		}
-	} else { // to remove component rules if it is there already
-		configMap.Data.PrometheusYML = strings.ReplaceAll(configMap.Data.PrometheusYML, "- "+component+"*.rules\n", "")
+	} else { // to remove component rules if it is there
+		fmt.Println("Removing prometheus rule: " + component + "*.rules")
+		if ruleList, ok := prometheusContent["rule_files"].([]interface{}); ok {
+			for i, item := range ruleList {
+				if rule, isStr := item.(string); isStr && rule == component+"*.rules" {
+					ruleList = append(ruleList[:i], ruleList[i+1:]...)
+					break
+				}
+			}
+			prometheusContent["rule_files"] = ruleList
+		}
+		//configMap.Data.PrometheusYML = strings.ReplaceAll(configMap.Data.PrometheusYML, "-	"+component+"*.rules", "")
 	}
+
+	// Marshal back
+	newDataYAML, err := yaml.Marshal(&prometheusContent)
+	if err != nil {
+		return err
+	}
+	configMap.Data.PrometheusYML = string(newDataYAML)
 
 	newyamlData, err := yaml.Marshal(&configMap)
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	// debug wen:
+	// fmt.Println(string(newyamlData))
 	// Write the modified content back to the file
-	err = os.WriteFile(prometheusconfigPath, newyamlData, 0)
-	if err != nil {
+	if err = os.WriteFile(prometheusconfigPath, newyamlData, 0); err != nil {
 		return err
 	}
 	return nil

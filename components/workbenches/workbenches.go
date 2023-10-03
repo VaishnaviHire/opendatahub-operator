@@ -2,15 +2,16 @@
 package workbenches
 
 import (
+	"path/filepath"
+	"strings"
+
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 var (
@@ -108,6 +109,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	// Create rhods-notebooks namespace in managed platforms
 	enabled := w.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
+
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
@@ -163,12 +165,17 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	}
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
-		if err := w.UpdatePrometheusConfig(cli, monitoringEnabled, w.GetComponentName()); err != nil {
+		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, w.GetComponentName()); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			w.GetComponentName()+"prometheus", true); err != nil {
 			return err
 		}
 	}
 	return err
-
 }
 
 func (w *Workbenches) DeepCopyInto(target *Workbenches) {

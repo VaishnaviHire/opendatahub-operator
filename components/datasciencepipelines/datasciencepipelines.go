@@ -88,8 +88,14 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, d.GetComponentName(), enabled)
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods && monitoringEnabled {
-		if err := d.UpdatePrometheusConfig(cli, monitoringEnabled, d.GetComponentName()); err != nil {
+	if platform == deploy.ManagedRhods {
+		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, d.GetComponentName()); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			d.GetComponentName()+"prometheus", true); err != nil {
 			return err
 		}
 	}

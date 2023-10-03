@@ -248,7 +248,13 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			}
 		}
 		// CloudService Monitoring handling
-		if err := d.UpdatePrometheusConfig(cli, monitoringEnabled, d.GetComponentName()); err != nil {
+		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, d.GetComponentName()); err != nil {
+			return err
+		}
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
+			dscispec.Monitoring.Namespace,
+			d.GetComponentName()+"prometheus", true); err != nil {
 			return err
 		}
 		return err

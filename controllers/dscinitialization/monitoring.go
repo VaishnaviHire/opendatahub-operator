@@ -92,7 +92,6 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	}
 	r.Log.Info("Success: generate alertmanage config")
 
-	alertManagerPath = filepath.Join(deploy.DefaultManifestPath, "monitoring", "alertmanager")
 	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", alertManagerPath)
@@ -131,7 +130,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		err = common.ReplaceStringsInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
 			map[string]string{
 				"<odh_application_namespace>": dsciInit.Spec.ApplicationsNamespace,
-				"<console-domain>":            consolelinkDomain,
+				"<console_domain>":            consolelinkDomain,
 			})
 		if err != nil {
 			r.Log.Error(err, "error to inject data to prometheus-configs.yaml")
@@ -211,9 +210,9 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	}
 
 	// final deploy manifests
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, "prometheus", prometheusManifestsPath, dsciInit.Spec.Monitoring.Namespace, dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath, dsciInit.Spec.Monitoring.Namespace, "prometheus", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
-		r.Log.Error(err, "error to deploy manifests", "path", prometheusManifestsPath)
+		r.Log.Error(err, "error to deploy manifests for prometheus", "path", prometheusManifestsPath)
 		return err
 	}
 

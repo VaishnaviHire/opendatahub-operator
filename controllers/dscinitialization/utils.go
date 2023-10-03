@@ -283,7 +283,7 @@ func CompareNotebookNetworkPolicies(np1 netv1.NetworkPolicy, np2 netv1.NetworkPo
 		reflect.DeepEqual(np1.Spec, np2.Spec)
 }
 
-func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name, namespace string) (*corev1.Secret, error) {
+func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
 	err := wait.Poll(resourceInterval, resourceTimeout, func() (done bool, err error) {
 
