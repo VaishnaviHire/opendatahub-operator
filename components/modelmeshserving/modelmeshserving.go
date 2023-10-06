@@ -91,13 +91,12 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled)
-
+	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
 	if err != nil {
 		return err
 	}
 
-	// Get monitoring namespace
+	// Get modelmesh monitoring namespace
 	dscInit := &dsci.DSCInitialization{}
 	err = cli.Get(context.TODO(), client.ObjectKey{
 		Name: "default",
@@ -120,7 +119,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		// first model-mesh rules
-		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, m.GetComponentName()); err != nil {
+		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		// then odh-model-controller rules
@@ -130,11 +129,11 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
-			m.GetComponentName()+"prometheus", true); err != nil {
+			ComponentName+"prometheus", true); err != nil {
 			return err
 		}
 	}
-	return err
+	return nil
 }
 
 func (m *ModelMeshServing) DeepCopyInto(target *ModelMeshServing) {

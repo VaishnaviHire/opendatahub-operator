@@ -68,7 +68,6 @@ type ComponentInterface interface {
 	ReconcileComponent(cli client.Client, owner metav1.Object, DSCISpec *dsci.DSCInitializationSpec) error
 	GetComponentName() string
 	GetManagementState() operatorv1.ManagementState
-	GetComponentDevFlags() DevFlags
 	SetImageParamsMap(imageMap map[string]string) map[string]string
 	OverrideManifests(platform string) error
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
@@ -76,7 +75,6 @@ type ComponentInterface interface {
 
 func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, component string) error {
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
-	fmt.Println("DEBUG wen: prometheusconfigPath is " + prometheusconfigPath)
 	// create a struct to mock poremtheus.yml
 	type ConfigMap struct {
 		APIVersion string `yaml:"apiVersion"`
@@ -98,7 +96,7 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 	if err != nil {
 		return err
 	}
-	if err := yaml.Unmarshal([]byte(yamlData), &configMap); err != nil {
+	if err := yaml.Unmarshal(yamlData, &configMap); err != nil {
 		return err
 	}
 
@@ -146,8 +144,6 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 		return err
 	}
 
-	// debug wen:
-	// fmt.Println(string(newyamlData))
 	// Write the modified content back to the file
 	if err = os.WriteFile(prometheusconfigPath, newyamlData, 0); err != nil {
 		return err

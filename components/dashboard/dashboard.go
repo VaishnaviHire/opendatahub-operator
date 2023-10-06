@@ -221,7 +221,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		if err != nil {
 			return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
 		}
-		return err
+		return nil
 	case deploy.ManagedRhods:
 		err = deploy.DeployManifestsFromPath(cli, owner, PathISVAddOn, dscispec.ApplicationsNamespace, ComponentNameSupported, enabled)
 		if err != nil {
@@ -248,16 +248,16 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			}
 		}
 		// CloudService Monitoring handling
-		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, d.GetComponentName()); err != nil {
+		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
-			d.GetComponentName()+"prometheus", true); err != nil {
+			ComponentName+"prometheus", true); err != nil {
 			return err
 		}
-		return err
+		return nil
 	default:
 		return nil
 	}

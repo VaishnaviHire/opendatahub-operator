@@ -167,12 +167,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			if err != nil {
 				return reconcile.Result{}, err
 			}
-			// debug wen start
-			// err = r.configureManagedMonitoring(ctx, instance)
-			// if err != nil {
-			// 	return reconcile.Result{}, err
-			// }
-			// debug wen done
 		case deploy.ManagedRhods:
 			r.Log.Info("Monitoring enabled", "cluster", "Managed Service Mode")
 			err := r.configureManagedMonitoring(ctx, instance)

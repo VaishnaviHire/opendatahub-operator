@@ -160,22 +160,22 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 	if err = deploy.DeployManifestsFromPath(cli, owner,
 		manifestsPath,
 		dscispec.ApplicationsNamespace,
-		w.GetComponentName(), enabled); err != nil {
+		ComponentName, enabled); err != nil {
 		return err
 	}
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
-		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, w.GetComponentName()); err != nil {
+		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,
 			filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps"),
 			dscispec.Monitoring.Namespace,
-			w.GetComponentName()+"prometheus", true); err != nil {
+			ComponentName+"prometheus", true); err != nil {
 			return err
 		}
 	}
-	return err
+	return nil
 }
 
 func (w *Workbenches) DeepCopyInto(target *Workbenches) {
