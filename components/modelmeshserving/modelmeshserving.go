@@ -117,7 +117,7 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 	}
 
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods {
+	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		// first model-mesh rules
 		if err := m.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err

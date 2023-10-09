@@ -82,7 +82,7 @@ func (r *Ray) ReconcileComponent(cli client.Client, owner metav1.Object, dscispe
 		return err
 	}
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods {
+	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		if err := r.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

@@ -164,7 +164,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		return err
 	}
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods {
+	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}
