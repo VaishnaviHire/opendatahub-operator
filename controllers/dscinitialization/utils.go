@@ -8,14 +8,13 @@ import (
 	"strings"
 	"time"
 
-	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+
 	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -393,45 +392,4 @@ func GetDomain(cli client.Client, name string, namespace string) (string, error)
 	}
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	return consoleRoute.Spec.Host[domainIndex+1:], nil
-}
-
-func updatefromLegacyVersion(cli client.Client) error {
-	// Check if kfdef are deployed
-	kfdefCrd := &apiextv1.CustomResourceDefinition{}
-
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: "kfdefs.kfdef.apps.kubeflow.org"}, kfdefCrd)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// If no Crd found, return, since its a new Installation
-			return nil
-		} else {
-			return fmt.Errorf("error retrieving kfdef CRD : %v", err)
-		}
-	} else {
-		expectedKfDefList := &kfdefv1.KfDefList{}
-		err := cli.List(context.TODO(), expectedKfDefList)
-		if err != nil {
-			if apierrs.IsNotFound(err) {
-				// If no KfDefs, do nothing and return
-				return nil
-			} else {
-				return fmt.Errorf("error getting list of kfdefs: %v", err)
-			}
-		}
-		// Delete kfdefs
-		for _, kfdef := range expectedKfDefList.Items {
-			// Remove finalizer
-			updatedKfDef := &kfdef
-			updatedKfDef.Finalizers = []string{}
-			err = cli.Update(context.TODO(), updatedKfDef)
-			if err != nil {
-				return fmt.Errorf("error removing finalizers from kfdef %v : %v", kfdef.Name, err)
-			}
-			err = cli.Delete(context.TODO(), updatedKfDef)
-			if err != nil {
-				return fmt.Errorf("error deleting kfdef %v : %v", kfdef.Name, err)
-			}
-		}
-	}
-	return nil
 }

@@ -21,17 +21,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-
+	"github.com/go-logr/logr"
 	"path/filepath"
 	"reflect"
 
-	"github.com/go-logr/logr"
-
-	"k8s.io/client-go/util/retry"
-
+	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -39,6 +34,7 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -48,6 +44,7 @@ import (
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -156,7 +153,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Apply update from legacy operator
 		// TODO: Update upgrade logic to get components through KfDef
-		if err = updatefromLegacyVersion(r.Client); err != nil {
+		if err = common.RemoveKfDefInstances(r.Client); err != nil {
 			r.Log.Error(err, "unable to update from legacy operator version")
 			return reconcile.Result{}, err
 		}
