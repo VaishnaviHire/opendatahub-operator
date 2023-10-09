@@ -47,6 +47,8 @@ spec:
             drop:
             - ALL
           runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         ports:
         - containerPort: 9091
           name: https
@@ -93,6 +95,8 @@ spec:
             drop:
             - ALL
           runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         args:
           - --storage.tsdb.retention.time=6h
           - --storage.tsdb.min-block-duration=2h
@@ -175,6 +179,8 @@ spec:
             drop:
             - ALL
           runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         imagePullPolicy: Always
         ports:
         - containerPort: 10443
@@ -234,6 +240,8 @@ spec:
             drop:
             - ALL
           runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         imagePullPolicy: Always
         ports:
           - containerPort: 9093

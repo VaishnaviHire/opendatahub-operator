@@ -3,4 +3,3 @@ kind: Kustomization
 resources:
   - blackbox-exporter-deployment.yaml
   - blackbox-exporter-service.yaml
-  - blackbox-exporter-configmap.yaml
