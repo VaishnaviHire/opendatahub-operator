@@ -6,7 +6,9 @@ resources:
   - prometheus-pvc.yaml
   - prometheus-service.yaml
   - prometheus-sa.yaml
+  - prometheus-cm-service-ca.yaml
   - prometheus-roles.yaml
   - prometheus-rolebinding-scraper.yaml
   - prometheus-rolebinding-viewer.yaml
   - prometheus-route.yaml
+  - prometheus-rolebinding-scc.yaml

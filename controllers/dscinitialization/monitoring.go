@@ -36,6 +36,12 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	if err := configureBlackboxExporter(dscInit, r.Client, r.Scheme); err != nil {
 		return fmt.Errorf("error in configureBlackboxExporter: %w", err)
 	}
+
+	err := common.UpdatePodSecurityRolebinding(r.Client, []string{"redhat-ods-monitoring"}, dscInit.Spec.Monitoring.Namespace)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

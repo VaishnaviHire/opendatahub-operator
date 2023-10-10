@@ -30,8 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
-// being used by different components.
+// UpdatePodSecurityRolebinding update default rolebinding which is created in namespace by manifests
+// being used by different components and monitoring
 func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []string, namespace string) error {
 	foundRoleBinding := &authv1.RoleBinding{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding)
