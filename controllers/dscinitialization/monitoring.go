@@ -83,13 +83,13 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	// TODO: Following variables can later be exposed by the API
 	err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
 		map[string]string{
-			"<snitch_url>":      b64.StdEncoding.EncodeToString(deadmansnitchSecret.Data["SNITCH_URL"]),
-			"<pagerduty_token>": b64.StdEncoding.EncodeToString(pagerDutySecret.Data["PAGERDUTY_KEY"]),
-			"<smtp_host>":       b64.StdEncoding.EncodeToString(smtpSecret.Data["host"]),
-			"<smtp_port>":       b64.StdEncoding.EncodeToString(smtpSecret.Data["port"]),
-			"<smtp_username>":   b64.StdEncoding.EncodeToString(smtpSecret.Data["username"]),
-			"<smtp_password>":   b64.StdEncoding.EncodeToString(smtpSecret.Data["password"]),
-			"<user_emails>":     b64.StdEncoding.EncodeToString(smtpEmailSecret.Data["notification-email"]),
+			"<snitch_url>":      string(deadmansnitchSecret.Data["SNITCH_URL"]),
+			"<pagerduty_token>": string(pagerDutySecret.Data["PAGERDUTY_KEY"]),
+			"<smtp_host>":       string(smtpSecret.Data["host"]),
+			"<smtp_port>":       string(smtpSecret.Data["port"]),
+			"<smtp_username>":   string(smtpSecret.Data["username"]),
+			"<smtp_password>":   string(smtpSecret.Data["password"]),
+			"<user_emails>":     string(smtpEmailSecret.Data["notification-email"]),
 			"@devshift.net":     "@rhmw.io",
 		})
 	if err != nil {
