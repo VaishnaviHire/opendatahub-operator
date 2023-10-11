@@ -222,7 +222,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
 		}
 		// CloudService Monitoring handling
-		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,
@@ -247,7 +247,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 				"<section-title>":       "OpenShift Managed Services",
 			})
 			if err != nil {
-				return fmt.Errorf("Error replacing with correct dashboard url for ConsoleLink: %v", err)
+				return fmt.Errorf("error replacing with correct dashboard url for ConsoleLink: %v", err)
 			}
 			err = deploy.DeployManifestsFromPath(cli, owner,
 				PathConsoleLink,
@@ -258,7 +258,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			}
 		}
 		// CloudService Monitoring handling
-		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
+		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
 			return err
 		}
 		if err = deploy.DeployManifestsFromPath(cli, owner,

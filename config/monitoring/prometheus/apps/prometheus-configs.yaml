@@ -194,6 +194,7 @@ data:
           target_label: dspa_service
         - source_labels: [__meta_kubernetes_namespace]
           target_label: namespace
+
     - job_name: 'MCAD Controller'
       honor_labels: true
       metrics_path: /metrics
@@ -478,7 +479,7 @@ data:
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-absent-over-time.md'
               summary: Alerting for CodeFlare Operator
 
-  dashboard-recording.rules: |
+  rhods-dashboard-recording.rules: |
     groups:
       - name: SLOs - ODH Dashboard
         rules:
@@ -567,7 +568,7 @@ data:
           labels:
             instance: rhods-dashboard
           record: probe_success:burnrate6h
-  dashboard-alerting.rules: |
+  rhods-dashboard-alerting.rules: |
     groups:
       - name: SLOs-haproxy_backend_http_responses_dashboard
         rules:
@@ -668,7 +669,7 @@ data:
             sum(probe_success:burnrate3d{name=~"rhods-dashboard"}) by (name) > (1.00 * (1-0.99950))
           for: 3h
           labels:
-            severity: warning---
+            severity: warning
 
   data-science-pipelines-operator-recording.rules: |
     groups:
@@ -890,7 +891,7 @@ data:
           expr: min(max_over_time(data_science_pipelines_application_scheduledworkflow_ready[3m])) by (dspa_name, dspa_namespace) == 0
           for: 2m
           labels:
-            severity: info---
+            severity: info
 
   model-mesh-recording.rules: |
     groups:
@@ -976,7 +977,7 @@ data:
             sum(probe_success:burnrate1d{instance=~"modelmesh-controller"}) by (instance) > (3.00 * (1-0.98000))
           for: 1h
           labels:
-            severity: warning---
+            severity: warning
 
   odh-model-controller-recording.rules: |
     groups:

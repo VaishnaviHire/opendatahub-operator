@@ -164,7 +164,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	}
 	r.Log.Info("Success: got prometheus configmap")
 
-	// Get prometheus data from configmap 'prometheus'
+	// Get encoded prometheus data from configmap 'prometheus'
 	prometheusData, err := getMonitoringData(fmt.Sprint(prometheusConfigMap.Data))
 	if err != nil {
 		r.Log.Error(err, "error to get prometheus data")
