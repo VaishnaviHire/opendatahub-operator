@@ -661,7 +661,6 @@ data:
         receiver: PagerDuty
 
     receivers:
-
     - name: 'alerts-sink'
 
     - name: 'user-notifications'
