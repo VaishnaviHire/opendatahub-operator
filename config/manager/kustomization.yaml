@@ -3,7 +3,7 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/wenzhou/opendatahub-operator
-  newTag: dev-2.10.67-2
+  newTag: dev-2.10.67-3
   
 resources:
 - manager.yaml

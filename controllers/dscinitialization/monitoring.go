@@ -15,9 +15,17 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
+	// "os"
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+)
+
+var (
+	ComponentName           = "monitoring"
+	alertManagerPath        = filepath.Join(deploy.DefaultManifestPath, ComponentName, "alertmanager")
+	prometheusManifestsPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "base")
+	prometheusConfigPath    = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "apps")
 )
 
 func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization) error {
@@ -45,8 +53,6 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 }
 
 func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
-	alertManagerPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "alertmanager")
-
 	// Get Deadmansnitch secret
 	deadmansnitchSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-deadmanssnitch", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
@@ -71,13 +77,6 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	}
 	r.Log.Info("Success: got smtp secret")
 
-	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
-	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", "redhat-ods-operator")
-	if err != nil {
-		return fmt.Errorf("error getting smtp receiver email secret: %w", err)
-	}
-	r.Log.Info("Success: got smpt email secret")
-
 	// Replace variables in alertmanager configmap for the initial time
 	// TODO: Following variables can later be exposed by the API
 	err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
@@ -88,21 +87,35 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 			"<smtp_port>":       string(smtpSecret.Data["port"]),
 			"<smtp_username>":   string(smtpSecret.Data["username"]),
 			"<smtp_password>":   string(smtpSecret.Data["password"]),
-			"<user_emails>":     string(smtpEmailSecret.Data["notification-email"]), // this field might get updated later
 			"@devshift.net":     "@rhmw.io",
 		})
 	if err != nil {
 		r.Log.Error(err, "error to inject data to alertmanager-configs.yaml")
 		return err
 	}
-	r.Log.Info("Success: generate alertmanage config")
+	r.Log.Info("Success: inject alertmanage-configs.yaml")
 
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
+	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", "redhat-ods-operator")
+	if err != nil {
+		return fmt.Errorf("error getting smtp receiver email secret: %w", err)
+	}
+	r.Log.Info("Success: got smpt email secret")
+	// replace smtpEmailSecret in alertmanager-configs.yaml
+	if err = common.MatchLineInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+		map[string]string{
+			"- to: ": "- to: " + string(smtpEmailSecret.Data["notification-email"]),
+		},
+	); err != nil {
+		return err
+	}
+	r.Log.Info("Success: update alertmanage-configs.yaml with email")
+	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", true)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests", "path", alertManagerPath)
 		return err
 	}
-	r.Log.Info("Success: deploy alertmanager manifests")
+	r.Log.Info("Success: update alertmanager with manifests")
 
 	// Create alertmanager-proxy secret
 	if err := createMonitoringProxySecret(r.Client, "alertmanager-proxy", dsciInit); err != nil {
@@ -114,9 +127,6 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 }
 
 func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, r *DSCInitializationReconciler) error {
-	prometheusManifestsPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "base")
-	prometheusConfigPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps")
-
 	// Update rolebinding-viewer
 	err := common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-rolebinding-viewer.yaml"),
 		map[string]string{
@@ -205,17 +215,26 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	// Update prometheus deployment with alertmanager and prometheus data
 	err = common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
 		map[string]string{
-			"<set_alertmanager_host>":    alertmanagerRoute.Spec.Host,
-			"<alertmanager_config_hash>": alertmanagerData, //everytime a new configmap 'alertmanager' lead to a new value and trigger re-deployment
-			"<prometheus_config_hash>":   prometheusData,   //everytime a new configmap 'prometheus' lead to a new value and trigger re-deployment
+			"<set_alertmanager_host>": alertmanagerRoute.Spec.Host,
 		})
 	if err != nil {
-		r.Log.Error(err, "error to inject data to prometheus.yaml manifests")
+		r.Log.Error(err, "error to inject set_alertmanager_host to prometheus-deployment.yaml")
 		return err
 	}
+	r.Log.Info("Success: update set_alertmanager_host in prometheus-deployment.yaml")
+	err = common.MatchLineInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
+		map[string]string{
+			"alertmanager: ": "alertmanager: " + alertmanagerData,
+			"prometheus: ":   "prometheus: " + prometheusData,
+		})
+	if err != nil {
+		r.Log.Error(err, "error to update annotations in prometheus-deployment.yaml")
+		return err
+	}
+	r.Log.Info("Success: update annotations in prometheus-deployment.yaml")
 
-	// final deploy manifests
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath, dsciInit.Spec.Monitoring.Namespace, "prometheus", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
+	// final apply prometheus manifests including prometheus deployment
+	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusManifestsPath, dsciInit.Spec.Monitoring.Namespace, "prometheus", true)
 	if err != nil {
 		r.Log.Error(err, "error to deploy manifests for prometheus", "path", prometheusManifestsPath)
 		return err
@@ -291,23 +310,6 @@ func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.
 	}
 	return nil
 
-}
-
-// To dynamically updat alertmanager data when user change/generate new secret ?
-func replaceInAlertManagerConfigmap(cli client.Client, dsciInit *dsci.DSCInitialization, cmName, replaceVariable, replaceValue string) error {
-	prometheusConfig := &corev1.ConfigMap{}
-	err := cli.Get(context.TODO(), client.ObjectKey{Name: cmName, Namespace: dsciInit.Spec.Monitoring.Namespace}, prometheusConfig)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-	prometheusAlertmanagerContent := prometheusConfig.Data["alertmanager.yml"]
-	prometheusAlertmanagerContent = strings.ReplaceAll(prometheusAlertmanagerContent, replaceVariable, replaceValue)
-
-	prometheusConfig.Data["alertmanager.yml"] = prometheusAlertmanagerContent
-	return cli.Update(context.TODO(), prometheusConfig)
 }
 
 func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.DSCInitialization) error {

@@ -43,6 +43,11 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	// "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object
@@ -218,8 +223,10 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Pod{}).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&corev1.Service{}).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringResrouce)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringResrouce)).
 		// this predicates prevents meaningless reconciliations from being triggered
-		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
+		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}, ContentChangedPredicate)).
 		Complete(r)
 }
 
@@ -238,4 +245,39 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 	})
 
 	return saved, err
+}
+
+var ContentChangedPredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		return true
+	},
+}
+
+func (r *DSCInitializationReconciler) watchMontiringResrouce(a client.Object) (requests []reconcile.Request) {
+	if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
+		r.Log.Info("DEBUG WEN: configmap")
+		if a.GetName() == "promethes" && a.GetNamespace() == "redhat-ods-monitoring" {
+			r.Log.Info("Found monitoring configmap has updated, start reconcile")
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: "promethes", Namespace: "redhat-ods-monitoring"},
+			}}
+		} else {
+			r.Log.Info("DEBUG WEN: not match secret")
+			return nil
+		}
+	}
+	if a.GetObjectKind().GroupVersionKind().Kind == "Secret" {
+		r.Log.Info("DEBUG WEN: secret")
+		if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == "redhat-ods-operator" {
+			r.Log.Info("Found monitoring secret has updated, start reconcile")
+			return []reconcile.Request{{
+				NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: "redhat-ods-operator"},
+			}}
+		} else {
+			r.Log.Info("DEBUG WEN: not match secret")
+			return nil
+		}
+	}
+	r.Log.Info("DEBUG WEN: catch" + a.GetObjectKind().GroupVersionKind().Kind)
+	return nil
 }

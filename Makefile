@@ -3,8 +3,8 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-IMAGE_OWNER ?= opendatahub
-VERSION ?= 2.1.0
+IMAGE_OWNER ?= wenzhou
+VERSION ?= 2.10.67-4
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -12,7 +12,7 @@ VERSION ?= 2.1.0
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
 IMAGE_TAG_BASE ?= quay.io/$(IMAGE_OWNER)/opendatahub-operator
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG ?= REPLACE_IMAGE
+IMG ?= $(IMAGE_TAG_BASE):dev-$(VERSION) #REPLACE_IMAGE
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
@@ -115,7 +115,7 @@ help: ## Display this help.
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 # TODO: enable below when we do webhook
 # $(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
-	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -151,7 +151,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: image-build
-image-build: test ## Build image with the manager.
+image-build: # test ## Build image with the manager.
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
