@@ -2,7 +2,6 @@ package dscinitialization
 
 import (
 	"context"
-	"crypto/sha256"
 	b64 "encoding/base64"
 	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
@@ -79,7 +78,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	}
 	r.Log.Info("Success: got smpt email secret")
 
-	// Replace variables in alertmanager configmap
+	// Replace variables in alertmanager configmap for the initial time
 	// TODO: Following variables can later be exposed by the API
 	err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
 		map[string]string{
@@ -89,7 +88,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 			"<smtp_port>":       string(smtpSecret.Data["port"]),
 			"<smtp_username>":   string(smtpSecret.Data["username"]),
 			"<smtp_password>":   string(smtpSecret.Data["password"]),
-			"<user_emails>":     string(smtpEmailSecret.Data["notification-email"]),
+			"<user_emails>":     string(smtpEmailSecret.Data["notification-email"]), // this field might get updated later
 			"@devshift.net":     "@rhmw.io",
 		})
 	if err != nil {
@@ -110,7 +109,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 		r.Log.Error(err, "error to create secret alertmanager-proxy")
 		return err
 	}
-	r.Log.Info("Success: create alertmanage secret")
+	r.Log.Info("Success: create alertmanager-proxy secret")
 	return nil
 }
 
@@ -165,7 +164,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	r.Log.Info("Success: got prometheus configmap")
 
 	// Get encoded prometheus data from configmap 'prometheus'
-	prometheusData, err := getMonitoringData(fmt.Sprint(prometheusConfigMap.Data))
+	prometheusData, err := common.GetMonitoringData(fmt.Sprint(prometheusConfigMap.Data))
 	if err != nil {
 		r.Log.Error(err, "error to get prometheus data")
 		return err
@@ -196,7 +195,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	}
 	r.Log.Info("Success: got configmap 'alertmanager'")
 
-	alertmanagerData, err := getMonitoringData(alertManagerConfigMap.Data["alertmanager.yml"])
+	alertmanagerData, err := common.GetMonitoringData(alertManagerConfigMap.Data["alertmanager.yml"])
 	if err != nil {
 		r.Log.Error(err, "error to get encoded alertmanager data from alertmanager.yml")
 		return err
@@ -226,6 +225,8 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	if err := createMonitoringProxySecret(r.Client, "prometheus-proxy", dsciInit); err != nil {
 		return err
 	}
+	r.Log.Info("Success: create prometheus-proxy secret")
+
 	return nil
 }
 
@@ -309,33 +310,13 @@ func replaceInAlertManagerConfigmap(cli client.Client, dsciInit *dsci.DSCInitial
 	return cli.Update(context.TODO(), prometheusConfig)
 }
 
-// encode configmap data and return in base64
-func getMonitoringData(data string) (string, error) {
-	// Create a new SHA-256 hash object
-	hash := sha256.New()
-
-	// Write the input data to the hash object
-	_, err := hash.Write([]byte(data))
-	if err != nil {
-		return "", err
-	}
-
-	// Get the computed hash sum
-	hashSum := hash.Sum(nil)
-
-	// Encode the hash sum to Base64
-	encodedData := b64.StdEncoding.EncodeToString(hashSum)
-
-	return encodedData, nil
-}
-
 func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.DSCInitialization) error {
 	// configure segment.io
 	err := deploy.DeployManifestsFromPath(r.Client, dsciInit,
 		deploy.DefaultManifestPath+"/monitoring/segment",
 		dsciInit.Spec.ApplicationsNamespace, "segment-io", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
-		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/segment")
+		r.Log.Error(err, "error to deploy manifests under "+deploy.DefaultManifestPath+"/monitoring/segment")
 		return err
 	}
 
@@ -344,7 +325,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.D
 		deploy.DefaultManifestPath+"/monitoring/base",
 		dsciInit.Spec.Monitoring.Namespace, "monitoring-base", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
 	if err != nil {
-		r.Log.Error(err, "error to deploy manifests under /opt/manifests/monitoring/base")
+		r.Log.Error(err, "error to deploy manifests under "+deploy.DefaultManifestPath+"/monitoring/base")
 		return err
 	}
 

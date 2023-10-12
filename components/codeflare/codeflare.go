@@ -101,6 +101,7 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		ComponentName, enabled)
 
 	// CloudServiceMonitoring handling
+	// TODO: cleanup selfmanaged before final code merge
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		// inject prometheus codeflare*.rules in to /opt/manifests/monitoring/prometheus/prometheus-configs.yaml
 		if err = c.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {

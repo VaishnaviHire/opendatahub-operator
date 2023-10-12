@@ -222,6 +222,7 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 			return fmt.Errorf("failed to set dashboard consolelink from %s: %w", PathConsoleLink, err)
 		}
 		// CloudService Monitoring handling
+		// TODO: cleanup below code before final code merge
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentNameSupported); err != nil {
 			return err
 		}

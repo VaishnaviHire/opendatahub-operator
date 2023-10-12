@@ -19,14 +19,18 @@ package common
 
 import (
 	"context"
+	"crypto/sha256"
+	b64 "encoding/base64"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -86,6 +90,24 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 	return nil
 }
 
+// MatchLineInFile use the 'key' of the replacements as match pattern and replace the line with 'value'
+func MatchLineInFile(fileName string, replacements map[string]string) error {
+	fileContent, err := os.ReadFile(fileName)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+	newContent := string(fileContent)
+	for matchPattern, NewValue := range replacements {
+		re := regexp.MustCompile(matchPattern + `(.*)`)
+		newContent = re.ReplaceAllString(newContent, NewValue)
+	}
+	err = os.WriteFile(fileName, []byte(newContent), 0)
+	if err != nil {
+		return fmt.Errorf("failed to write to file: %w", err)
+	}
+	return nil
+}
+
 // CreateSecret creates secrets required by dashboard component in downstream.
 func CreateSecret(cli client.Client, name, namespace string) error {
 	desiredSecret := &corev1.Secret{
@@ -135,4 +157,24 @@ func CreateNamespace(cli client.Client, namespace string) error {
 		}
 	}
 	return nil
+}
+
+// encode configmap data and return in base64
+func GetMonitoringData(data string) (string, error) {
+	// Create a new SHA-256 hash object
+	hash := sha256.New()
+
+	// Write the input data to the hash object
+	_, err := hash.Write([]byte(data))
+	if err != nil {
+		return "", err
+	}
+
+	// Get the computed hash sum
+	hashSum := hash.Sum(nil)
+
+	// Encode the hash sum to Base64
+	encodedData := b64.StdEncoding.EncodeToString(hashSum)
+
+	return encodedData, nil
 }

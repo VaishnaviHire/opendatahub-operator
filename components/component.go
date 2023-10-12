@@ -73,6 +73,7 @@ type ComponentInterface interface {
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
 }
 
+// UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude new <component>.rules
 func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, component string) error {
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
 	// create a struct to mock poremtheus.yml

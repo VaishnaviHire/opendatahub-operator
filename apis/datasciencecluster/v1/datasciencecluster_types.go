@@ -27,6 +27,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
+	"github.com/opendatahub-io/opendatahub-operator/v2/components/sremonitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 )
 
@@ -65,6 +66,9 @@ type Components struct {
 	// Ray component configuration.
 	// Require CodeFlare Operator to be installed before enable component
 	Ray ray.Ray `json:"ray,omitempty"`
+
+	// SRE monitoring component configuration.
+	SREMonitoring sremonitoring.SREMonitoring `json:"sremonitoring,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster

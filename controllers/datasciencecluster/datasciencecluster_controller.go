@@ -21,10 +21,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/util/retry"
@@ -190,6 +191,12 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		componentErrors = multierror.Append(componentErrors, err)
 	}
 
+	// reconcile SRE monitoring component
+	if instance, err = r.reconcileSubComponent(ctx, instance, &(instance.Spec.Components.SREMonitoring)); err != nil {
+		// no need to log any errors as this is done in the reconcileSubComponent method
+		componentErrors = multierror.Append(componentErrors, err)
+	}
+
 	// Process errors for components
 	if componentErrors != nil {
 		r.Log.Info("DataScienceCluster Deployment Incomplete.")
@@ -303,6 +310,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Owns(&appsv1.ReplicaSet{}).
 		Owns(&corev1.Pod{}).
 		Watches(&source.Kind{Type: &dsci.DSCInitialization{}}, handler.EnqueueRequestsFromMapFunc(r.watchDataScienceClusterResources)).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringSecret)).
 		// this predicates prevents meaningless reconciliations from being triggered
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
@@ -355,6 +363,17 @@ func (r *DataScienceClusterReconciler) watchDataScienceClusterResources(a client
 	if len(instanceList.Items) == 1 {
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
+	} else {
+		return nil
+	}
+}
+
+func (r *DataScienceClusterReconciler) watchMontiringSecret(a client.Object) (requests []reconcile.Request) {
+	if a.GetObjectKind().GroupVersionKind().Kind == "Secret" && a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == "redhat-ods-operator" {
+		r.Log.Info("Found monitoring secret has updated, start reconcile")
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: "d", Namespace: "redhat-ods-operator"},
+		}}
 	} else {
 		return nil
 	}

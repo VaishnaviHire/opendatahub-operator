@@ -88,6 +88,7 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 
 	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
 	// CloudService Monitoring handling
+	// TODO: cleanup selfmanaged before final code merge
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
