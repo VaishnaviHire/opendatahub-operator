@@ -22,7 +22,7 @@ import (
 	"errors"
 	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"path/filepath"
+	// "path/filepath"
 
 	"github.com/go-logr/logr"
 
@@ -130,7 +130,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Apply update from legacy operator
 	// TODO: Update upgrade logic to get components through KfDef
-	//if err = updatefromLegacyVersion(r.Client); err != nil {
+	//if err = updatefromLegacyVersion(r.Client); err != nil {ods-configsrhods-osd-configs.yaml
 	//	r.Log.Error(err, "unable to update from legacy operator version")
 	//	return reconcile.Result{}, err
 	//}
@@ -139,13 +139,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
 		//Apply osd specific permissions
 		if platform == deploy.ManagedRhods {
-			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
-			err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
-			if err != nil {
-				r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
-				return reconcile.Result{}, err
-			}
+			fmt.Println("TODO: confirm if we need rhods-osd-configs.yaml looks like only for kfDef")
+			// osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
+			// err = deploy.DeployManifestsFromPath(r.Client, instance, osdConfigsPath, r.ApplicationsNamespace, "osd", true)
+			// if err != nil {
+			// 	r.Log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
+			// 	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
+			// 	return reconcile.Result{}, err
+			// }
 		} else {
 			// Apply self-managed rhods config
 			// Create rhods-admins Group if it doesn't exist
