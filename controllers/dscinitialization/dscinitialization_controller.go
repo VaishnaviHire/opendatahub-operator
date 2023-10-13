@@ -167,12 +167,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		switch platform {
 		case deploy.SelfManagedRhods:
-			r.Log.Info("Monitoring enabled, should't apply changes but for test purpose we enable it here", "cluster", "Self-Managed RHODS Mode")
-			// TODO: clean up this block before final PR merge
-			err := r.configureManagedMonitoring(ctx, instance)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
+			r.Log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
 			err = r.configureCommonMonitoring(instance)
 			if err != nil {
 				return reconcile.Result{}, err
