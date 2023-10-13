@@ -21,7 +21,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
+
+	"reflect"
 	// "path/filepath"
 
 	"github.com/go-logr/logr"
@@ -36,6 +39,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -43,6 +48,7 @@ import (
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+
 	// "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -73,21 +79,25 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	}
 
-	// Second check if instance exists, return
-	err := r.Client.Get(ctx, req.NamespacedName, instance)
-	if err != nil {
-		if apierrs.IsNotFound(err) {
-			// DSCInitialization instance not found
-			return ctrl.Result{}, nil
+	// when it is not request from monitoring
+	expectDSCI := types.NamespacedName{Name: "default"}
+	if req.NamespacedName == expectDSCI {
+		// Second check if instance exists, return
+		err := r.Client.Get(ctx, req.NamespacedName, instance)
+		if err != nil {
+			if apierrs.IsNotFound(err) {
+				// DSCInitialization instance not found
+				return ctrl.Result{}, nil
+			}
+			r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+			return ctrl.Result{}, err
 		}
-		r.Log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
-		return ctrl.Result{}, err
 	}
 
 	// Last check if multiple instances of DSCInitialization exist
 	instanceList := &dsci.DSCInitializationList{}
-	err = r.Client.List(ctx, instanceList)
+	err := r.Client.List(ctx, instanceList)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -205,24 +215,24 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 // SetupWithManager sets up the controller with the Manager.
 func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&dsci.DSCInitialization{}).
-		Owns(&corev1.Namespace{}).
-		Owns(&corev1.Secret{}).
-		Owns(&corev1.ConfigMap{}).
-		Owns(&netv1.NetworkPolicy{}).
-		Owns(&authv1.Role{}).
-		Owns(&authv1.RoleBinding{}).
-		Owns(&authv1.ClusterRole{}).
-		Owns(&authv1.ClusterRoleBinding{}).
-		Owns(&appsv1.Deployment{}).
-		Owns(&appsv1.ReplicaSet{}).
-		Owns(&corev1.Pod{}).
-		Owns(&corev1.ServiceAccount{}).
-		Owns(&corev1.Service{}).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringResrouce)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringResrouce)).
+		For(&dsci.DSCInitialization{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.Namespace{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.Secret{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.ConfigMap{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&netv1.NetworkPolicy{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&authv1.Role{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&authv1.RoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&authv1.ClusterRole{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&authv1.ClusterRoleBinding{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&appsv1.Deployment{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&appsv1.ReplicaSet{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.Pod{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringSecretResrouce), builder.WithPredicates(SecretContentChangedPredicate)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringConfigMapResrouce), builder.WithPredicates(CMContentChangedPredicate)).
 		// this predicates prevents meaningless reconciliations from being triggered
-		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}, ContentChangedPredicate)).
+		// WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})).
 		Complete(r)
 }
 
@@ -243,37 +253,44 @@ func (r *DSCInitializationReconciler) updateStatus(ctx context.Context, original
 	return saved, err
 }
 
-var ContentChangedPredicate = predicate.Funcs{
+var SecretContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		return true
+		oldSecret := e.ObjectOld.(*corev1.Secret)
+		newSecret := e.ObjectNew.(*corev1.Secret)
+		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
+	},
+}
+var CMContentChangedPredicate = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldCM := e.ObjectOld.(*corev1.ConfigMap)
+		newCM := e.ObjectNew.(*corev1.ConfigMap)
+		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMontiringResrouce(a client.Object) (requests []reconcile.Request) {
-	if a.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
-		r.Log.Info("DEBUG WEN: configmap")
-		if a.GetName() == "promethes" && a.GetNamespace() == "redhat-ods-monitoring" {
-			r.Log.Info("Found monitoring configmap has updated, start reconcile")
-			return []reconcile.Request{{
-				NamespacedName: types.NamespacedName{Name: "promethes", Namespace: "redhat-ods-monitoring"},
-			}}
-		} else {
-			r.Log.Info("DEBUG WEN: not match secret")
-			return nil
-		}
+func (r *DSCInitializationReconciler) watchMontiringConfigMapResrouce(a client.Object) (requests []reconcile.Request) {
+	// r.Log.Info("DEBUG WEN: configmap")
+	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
+		r.Log.Info("Found monitoring configmap has updated, start reconcile")
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"},
+		}}
+	} else {
+		// r.Log.Info("DEBUG WEN: not match configmap " + a.GetName() + " from ns: " + a.GetNamespace())
+		return nil
 	}
-	if a.GetObjectKind().GroupVersionKind().Kind == "Secret" {
-		r.Log.Info("DEBUG WEN: secret")
-		if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == "redhat-ods-operator" {
-			r.Log.Info("Found monitoring secret has updated, start reconcile")
-			return []reconcile.Request{{
-				NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: "redhat-ods-operator"},
-			}}
-		} else {
-			r.Log.Info("DEBUG WEN: not match secret")
-			return nil
-		}
+}
+
+func (r *DSCInitializationReconciler) watchMontiringSecretResrouce(a client.Object) (requests []reconcile.Request) {
+	// r.Log.Info("DEBUG WEN: secret")
+	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == "redhat-ods-operator" {
+		r.Log.Info("Found monitoring secret has updated, start reconcile")
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: "redhat-ods-operator"},
+			//NamespacedName: types.NamespacedName{Name: "default"},
+		}}
+	} else {
+		// r.Log.Info("DEBUG WEN: not match secret " + a.GetName() + " from ns: " + a.GetNamespace())
+		return nil
 	}
-	r.Log.Info("DEBUG WEN: catch" + a.GetObjectKind().GroupVersionKind().Kind)
-	return nil
 }

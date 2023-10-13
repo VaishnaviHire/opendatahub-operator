@@ -49,6 +49,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 		return err
 	}
 
+	r.Log.Info("Success: finish config managed monitoring stack!")
 	return nil
 }
 
