@@ -872,8 +872,8 @@ data:
           for: 3h
           labels:
             severity: info
-    groups:
       - name: SLOs-probe_success
+        rules:
         - alert: Data Science Pipelines Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
@@ -910,7 +910,6 @@ data:
           for: 1h
           labels:
             severity: warning
-    groups:
       - name: RHODS Data Science Pipelines
         rules:
         - alert: Data Science Pipeline Application Unavailable

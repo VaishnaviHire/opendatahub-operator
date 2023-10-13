@@ -76,6 +76,7 @@ type ComponentInterface interface {
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude new <component>.rules
 func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, component string) error {
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
+
 	// create a struct to mock poremtheus.yml
 	type ConfigMap struct {
 		APIVersion string `yaml:"apiVersion"`
@@ -85,14 +86,29 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 			Namespace string `yaml:"namespace"`
 		} `yaml:"metadata"`
 		Data struct {
-			PrometheusYML string `yaml:"prometheus.yml"`
+			PrometheusYML      string `yaml:"prometheus.yml"`
+			OperatorRules      string `yaml:"operator-recording.rules"`
+			DeadManSnitchRules string `yaml:"deadmanssnitch-alerting.rules"`
+			CFRRules           string `yaml:"codeflare-recording.rules"`
+			CRARules           string `yaml:"codeflare-alerting.rules"`
+			DashboardRRules    string `yaml:"rhods-dashboard-recording.rule"`
+			DashboardARules    string `yaml:"rhods-dashboard-alerting.rules"`
+			DSPRRules          string `yaml:"data-science-pipelines-operator-recording.rules"`
+			DSPARules          string `yaml:"data-science-pipelines-operator-alerting.rules"`
+			MMRRules           string `yaml:"model-mesh-recording.rules"`
+			MMARules           string `yaml:"model-mesh-alerting.rules"`
+			OdhModelRRules     string `yaml:"odh-model-controller-recording.rules"`
+			OdhModelARules     string `yaml:"odh-model-controller-alerting.rules"`
+			RayARules          string `yaml:"ray-alerting.rules"`
+			WorkbenchesRRules  string `yaml:"workbenches-recording.rules"`
+			WorkbenchesARules  string `yaml:"workbenches-alerting.rules"`
 		} `yaml:"data"`
 	}
 	var configMap ConfigMap
 	// prometheusContent will represent content of prometheus.yml due to its dynamic struct
 	var prometheusContent map[interface{}]interface{}
 
-	// read prometheus.yml from local disk /opt/mainfests&/monitoring/
+	// read prometheus.yml from local disk /opt/mainfests/monitoring/prometheus/apps/
 	yamlData, err := os.ReadFile(prometheusconfigPath)
 	if err != nil {
 		return err
@@ -130,7 +146,6 @@ func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, compo
 			}
 			prometheusContent["rule_files"] = ruleList
 		}
-		//configMap.Data.PrometheusYML = strings.ReplaceAll(configMap.Data.PrometheusYML, "-	"+component+"*.rules", "")
 	}
 
 	// Marshal back
