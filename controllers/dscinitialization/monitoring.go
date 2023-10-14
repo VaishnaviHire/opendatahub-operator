@@ -28,7 +28,16 @@ var (
 	prometheusConfigPath    = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "apps")
 )
 
-func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization) error {
+// only when reconcile on DSCI CR, inital set to true
+// if reconcile from monitoring, inital set to false, skip blackbox and rolebinding
+func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization, inital bool) error {
+	if inital {
+		// configure Blackbox exporter
+		if err := configureBlackboxExporter(ctx, dscInit, r); err != nil {
+			return fmt.Errorf("error in configureBlackboxExporter: %w", err)
+		}
+	}
+
 	// configure Alertmanager
 	if err := configureAlertManager(ctx, dscInit, r); err != nil {
 		return fmt.Errorf("error in configureAlertManager: %w", err)
@@ -39,14 +48,11 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 		return fmt.Errorf("error in configurePrometheus: %w", err)
 	}
 
-	// configure Blackbox exporter
-	if err := configureBlackboxExporter(ctx, dscInit, r); err != nil {
-		return fmt.Errorf("error in configureBlackboxExporter: %w", err)
-	}
-
-	err := common.UpdatePodSecurityRolebinding(r.Client, []string{"redhat-ods-monitoring"}, dscInit.Spec.Monitoring.Namespace)
-	if err != nil {
-		return fmt.Errorf("error to update monitoring security rolebinding: %w", err)
+	if inital {
+		err := common.UpdatePodSecurityRolebinding(r.Client, []string{"redhat-ods-monitoring"}, dscInit.Spec.Monitoring.Namespace)
+		if err != nil {
+			return fmt.Errorf("error to update monitoring security rolebinding: %w", err)
+		}
 	}
 
 	r.Log.Info("Success: finish config managed monitoring stack!")

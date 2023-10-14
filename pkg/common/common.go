@@ -35,7 +35,7 @@ import (
 )
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in namespace by manifests
-// being used by different components and monitoring
+// being used by different components and sre monitoring
 func UpdatePodSecurityRolebinding(cli client.Client, serviceAccountsList []string, namespace string) error {
 	foundRoleBinding := &authv1.RoleBinding{}
 	err := cli.Get(context.TODO(), client.ObjectKey{Name: namespace, Namespace: namespace}, foundRoleBinding)
