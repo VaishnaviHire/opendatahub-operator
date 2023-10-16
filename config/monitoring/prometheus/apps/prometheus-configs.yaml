@@ -252,6 +252,25 @@ data:
         - source_labels: [__meta_kubernetes_namespace]
           target_label: namespace
 
+    - job_name: 'KubeRay Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: http
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - redhat-ods-applications
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(kuberay-operator)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8080
+
     - job_name: 'MCAD Controller'
       honor_labels: true
       metrics_path: /metrics
