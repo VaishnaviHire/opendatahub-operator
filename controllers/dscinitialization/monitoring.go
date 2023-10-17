@@ -26,6 +26,8 @@ var (
 	alertManagerPath        = filepath.Join(deploy.DefaultManifestPath, ComponentName, "alertmanager")
 	prometheusManifestsPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "base")
 	prometheusConfigPath    = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "apps")
+	NameConsoleLink         = "console"
+	NamespaceConsoleLink    = "openshift-console"
 )
 
 // only when reconcile on DSCI CR, inital set to true
@@ -145,7 +147,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		return err
 	}
 	// Update prometheus-config for dashboard, dsp and workbench
-	consolelinkDomain, err := GetDomain(r.Client)
+	consolelinkDomain, err := GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %v", err)
 	} else {
@@ -321,22 +323,28 @@ func createMonitoringProxySecret(cli client.Client, name string, dsciInit *dsci.
 
 func (r *DSCInitializationReconciler) configureCommonMonitoring(dsciInit *dsci.DSCInitialization) error {
 	// configure segment.io
-	err := deploy.DeployManifestsFromPath(r.Client, dsciInit,
-		deploy.DefaultManifestPath+"/monitoring/segment",
-		dsciInit.Spec.ApplicationsNamespace, "segment-io", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
-	if err != nil {
-		r.Log.Error(err, "error to deploy manifests under "+deploy.DefaultManifestPath+"/monitoring/segment")
+	segmentPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "segment")
+	if err := deploy.DeployManifestsFromPath(
+		r.Client,
+		dsciInit,
+		segmentPath,
+		dsciInit.Spec.ApplicationsNamespace,
+		"segment-io",
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+		r.Log.Error(err, "error to deploy manifests under "+segmentPath)
 		return err
 	}
-
 	// configure monitoring base
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit,
-		deploy.DefaultManifestPath+"/monitoring/base",
-		dsciInit.Spec.Monitoring.Namespace, "monitoring-base", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
-	if err != nil {
-		r.Log.Error(err, "error to deploy manifests under "+deploy.DefaultManifestPath+"/monitoring/base")
+	monitoringBasePath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "base")
+	if err := deploy.DeployManifestsFromPath(
+		r.Client,
+		dsciInit,
+		monitoringBasePath,
+		dsciInit.Spec.Monitoring.Namespace,
+		"monitoring-base",
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
+		r.Log.Error(err, "error to deploy manifests under "+monitoringBasePath)
 		return err
 	}
-
 	return nil
 }

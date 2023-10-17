@@ -20,14 +20,6 @@ var (
 	DependentComponentName = "odh-model-controller"
 )
 
-var imageParamMap = map[string]string{
-	"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
-	"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
-	"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
-	"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-	"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-}
-
 type ModelMeshServing struct {
 	components.Component `json:""`
 }
@@ -49,23 +41,22 @@ func (m *ModelMeshServing) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (m *ModelMeshServing) GetComponentDevFlags() components.DevFlags {
-	return m.DevFlags
-}
-
 func (m *ModelMeshServing) GetComponentName() string {
 	return ComponentName
-}
-
-func (m *ModelMeshServing) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
 }
 
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*ModelMeshServing)(nil)
 
 func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"odh-mm-rest-proxy":             "RELATED_IMAGE_ODH_MM_REST_PROXY_IMAGE",
+		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
+		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
+		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
+		"odh-model-controller":          "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+	}
+
 	enabled := m.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
@@ -84,8 +75,8 @@ func (m *ModelMeshServing) ReconcileComponent(cli client.Client, owner metav1.Ob
 			return err
 		}
 		// Update image parameters
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		if dscispec.DevFlags.ManifestsUri == "" && len(m.DevFlags.Manifests) == 0 {
+			if err := deploy.ApplyParams(Path, m.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}

@@ -3,6 +3,7 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"reflect"
 	"strings"
@@ -35,7 +36,7 @@ var (
 // - ConfigMap  'odh-common-config'
 // - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - RoleBinding 'opendatahub'
-func (r *DSCInitializationReconciler) createOdhNamespace(dscInit *dsci.DSCInitialization, name string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsci.DSCInitialization, name string) error {
 	// Expected namespace for the given name
 	desiredNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -360,7 +361,7 @@ func (r *DSCInitializationReconciler) createOdhCommonConfigMap(dscInit *dsci.DSC
 	return nil
 }
 
-func (r *DSCInitializationReconciler) createUserGroup(dscInit *dsci.DSCInitialization, userGroupName string, ctx context.Context) error {
+func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscInit *dsci.DSCInitialization, userGroupName string) error {
 	userGroup := &ocuserv1.Group{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: userGroupName,
@@ -383,10 +384,10 @@ func (r *DSCInitializationReconciler) createUserGroup(dscInit *dsci.DSCInitializ
 }
 
 // Use openshift-console namespace to get host domain
-func GetDomain(cli client.Client) (string, error) {
+func GetDomain(cli client.Client, name string, namespace string) (string, error) {
 	consoleRoute := &routev1.Route{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: "console", Namespace: "openshift-console"}, consoleRoute); err != nil {
-		return "", err
+	if err := cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, consoleRoute); err != nil {
+		return "", fmt.Errorf("error getting %s route URL: %w", name, err)
 	}
 	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
 	return consoleRoute.Spec.Host[domainIndex+1:], nil

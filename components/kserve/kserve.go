@@ -24,14 +24,6 @@ var (
 	ServerlessOperator     = "serverless-operator"
 )
 
-// Kserve to use
-var imageParamMap = map[string]string{}
-
-// odh-model-controller to use
-var dependentImageParamMap = map[string]string{
-	"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-}
-
 type Kserve struct {
 	components.Component `json:""`
 }
@@ -74,15 +66,6 @@ func (k *Kserve) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (k *Kserve) GetComponentDevFlags() components.DevFlags {
-	return k.DevFlags
-}
-
-func (k *Kserve) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 func (k *Kserve) GetComponentName() string {
 	return ComponentName
 }
@@ -91,6 +74,14 @@ func (k *Kserve) GetComponentName() string {
 var _ components.ComponentInterface = (*Kserve)(nil)
 
 func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	// paramMap for Kserve to use.
+	var imageParamMap = map[string]string{}
+
+	// dependentParamMap for odh-model-controller to use.
+	var dependentParamMap = map[string]string{
+		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+	}
+
 	enabled := k.GetManagementState() == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
@@ -120,8 +111,8 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		if dscispec.DevFlags.ManifestsUri == "" && len(k.DevFlags.Manifests) == 0 {
+			if err := deploy.ApplyParams(Path, k.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}
@@ -137,8 +128,8 @@ func (k *Kserve) ReconcileComponent(cli client.Client, owner metav1.Object, dsci
 			return err
 		}
 		// Update image parameters for odh-model-controller
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(DependentPath, dependentImageParamMap); err != nil {
+		if dscispec.DevFlags.ManifestsUri == "" && len(k.DevFlags.Manifests) == 0 {
+			if err := deploy.ApplyParams(DependentPath, k.SetImageParamsMap(dependentParamMap), false); err != nil {
 				return err
 			}
 		}

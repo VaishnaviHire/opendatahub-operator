@@ -25,11 +25,6 @@ var (
 	notebookImagesPathSupported = deploy.DefaultManifestPath + "/jupyterhub/notebook-images/overlays/additional"
 )
 
-var imageParamMap = map[string]string{
-	"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
-	"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
-}
-
 type Workbenches struct {
 	components.Component `json:""`
 }
@@ -88,33 +83,30 @@ func (w *Workbenches) OverrideManifests(platform string) error {
 	return nil
 }
 
-func (w *Workbenches) GetComponentDevFlags() components.DevFlags {
-	return w.DevFlags
-}
-
 func (w *Workbenches) GetComponentName() string {
 	return ComponentName
-}
-
-func (w *Workbenches) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
 }
 
 // Verifies that Dashboard implements ComponentInterface
 var _ components.ComponentInterface = (*Workbenches)(nil)
 
 func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"odh-notebook-controller-image":    "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
+		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
+	}
+
 	// Set default notebooks namespace
 	// Create rhods-notebooks namespace in managed platforms
 	enabled := w.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
-
 	platform, err := deploy.GetPlatform(cli)
 	if err != nil {
 		return err
 	}
 
+	// Set default notebooks namespace
+	// Create rhods-notebooks namespace in managed platforms
 	if enabled {
 		// Download manifests and update paths
 		if err = w.OverrideManifests(string(platform)); err != nil {
@@ -135,16 +127,15 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled)
-	if err != nil {
+	if err = deploy.DeployManifestsFromPath(cli, owner, notebookControllerPath, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
 		return err
 	}
 
 	// Update image parameters for nbc in downstream
 	if enabled {
-		if dscispec.DevFlags.ManifestsUri == "" {
+		if dscispec.DevFlags.ManifestsUri == "" && len(w.DevFlags.Manifests) == 0 {
 			if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
-				if err := deploy.ApplyImageParams(notebookControllerPath, imageParamMap); err != nil {
+				if err := deploy.ApplyParams(notebookControllerPath, w.SetImageParamsMap(imageParamMap), false); err != nil {
 					return err
 				}
 			}
@@ -153,6 +144,13 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 
 	manifestsPath := ""
 	if platform == deploy.OpenDataHub || platform == "" {
+		// only for ODH after transit to kubeflow repo
+		if err = deploy.DeployManifestsFromPath(cli, owner,
+			kfnotebookControllerPath,
+			dscispec.ApplicationsNamespace,
+			ComponentName, enabled); err != nil {
+			return err
+		}
 		manifestsPath = notebookImagesPath
 	} else {
 		manifestsPath = notebookImagesPathSupported
@@ -164,7 +162,7 @@ func (w *Workbenches) ReconcileComponent(cli client.Client, owner metav1.Object,
 		return err
 	}
 	// CloudService Monitoring handling
-	if platform == deploy.ManagedRhods || platform == deploy.SelfManagedRhods {
+	if platform == deploy.ManagedRhods {
 		if err := w.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
 			return err
 		}

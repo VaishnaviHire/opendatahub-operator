@@ -14,12 +14,10 @@ import (
 
 var (
 	ComponentName       = "codeflare"
-	CodeflarePath       = deploy.DefaultManifestPath + "/" + "codeflare" + "/base"
+	CodeflarePath       = deploy.DefaultManifestPath + "/" + ComponentName + "/base"
 	CodeflareOperator   = "codeflare-operator"
 	RHCodeflareOperator = "rhods-codeflare-operator"
 )
-
-var imageParamMap = map[string]string{}
 
 type CodeFlare struct {
 	components.Component `json:""`
@@ -43,15 +41,6 @@ func (c *CodeFlare) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (c *CodeFlare) GetComponentDevFlags() components.DevFlags {
-	return c.DevFlags
-}
-
-func (c *CodeFlare) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
@@ -60,6 +49,9 @@ func (c *CodeFlare) GetComponentName() string {
 var _ components.ComponentInterface = (*CodeFlare)(nil)
 
 func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, dscispec *dsci.DSCInitializationSpec) error {
+	var imageParamMap = map[string]string{
+		"namespace": dscispec.ApplicationsNamespace,
+	}
 	enabled := c.GetManagementState() == operatorv1.Managed
 	monitoringEnabled := dscispec.Monitoring.ManagementState == operatorv1.Managed
 	platform, err := deploy.GetPlatform(cli)
@@ -87,18 +79,20 @@ func (c *CodeFlare) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		}
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(CodeflarePath, imageParamMap); err != nil {
+		if dscispec.DevFlags.ManifestsUri == "" && len(c.DevFlags.Manifests) == 0 {
+			if err := deploy.ApplyParams(CodeflarePath, c.SetImageParamsMap(imageParamMap), true); err != nil {
 				return err
 			}
 		}
 	}
 
 	// Deploy Codeflare
-	err = deploy.DeployManifestsFromPath(cli, owner,
+	if err := deploy.DeployManifestsFromPath(cli, owner,
 		CodeflarePath,
 		dscispec.ApplicationsNamespace,
-		ComponentName, enabled)
+		ComponentName, enabled); err != nil {
+		return err
+	}
 
 	// CloudServiceMonitoring handling
 	if platform == deploy.ManagedRhods {

@@ -36,6 +36,10 @@ func (c *Component) GetManagementState() operatorv1.ManagementState {
 	return c.ManagementState
 }
 
+func (c *Component) SetImageParamsMap(imageMap map[string]string) map[string]string {
+	return imageMap
+}
+
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 type DevFlags struct {
@@ -73,7 +77,8 @@ type ComponentInterface interface {
 	UpdatePrometheusConfig(cli client.Client, enable bool, component string) error
 }
 
-// UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude new <component>.rules
+// UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
+// parameter enable when set to true to add new rules, when set to false to remove existing rules
 func (c *Component) UpdatePrometheusConfig(cli client.Client, enable bool, component string) error {
 	prometheusconfigPath := filepath.Join("/opt/manifests", "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
 

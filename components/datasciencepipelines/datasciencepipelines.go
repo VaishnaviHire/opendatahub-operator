@@ -1,4 +1,5 @@
-// Package datasciencepipelines provides utility functions to config Data Science Pipelines: Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
+// Package datasciencepipelines provides utility functions to config Data Science Pipelines:
+// Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Tekton
 package datasciencepipelines
 
 import (
@@ -46,15 +47,6 @@ func (d *DataSciencePipelines) OverrideManifests(_ string) error {
 	return nil
 }
 
-func (d *DataSciencePipelines) GetComponentDevFlags() components.DevFlags {
-	return d.DevFlags
-}
-
-func (d *DataSciencePipelines) SetImageParamsMap(imageMap map[string]string) map[string]string {
-	imageParamMap = imageMap
-	return imageParamMap
-}
-
 func (d *DataSciencePipelines) GetComponentName() string {
 	return ComponentName
 }
@@ -76,17 +68,19 @@ func (d *DataSciencePipelines) ReconcileComponent(cli client.Client, owner metav
 			return err
 		}
 
-		// check if the dependent operator installed is done in dashboard
+		// skip check if the dependent operator has beeninstalled, this is done in dashboard
 
 		// Update image parameters only when we do not have customized manifests set
-		if dscispec.DevFlags.ManifestsUri == "" {
-			if err := deploy.ApplyImageParams(Path, imageParamMap); err != nil {
+		if dscispec.DevFlags.ManifestsUri == "" && len(d.DevFlags.Manifests) == 0 {
+			if err := deploy.ApplyParams(Path, d.SetImageParamsMap(imageParamMap), false); err != nil {
 				return err
 			}
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled)
+	if err := deploy.DeployManifestsFromPath(cli, owner, Path, dscispec.ApplicationsNamespace, ComponentName, enabled); err != nil {
+		return err
+	}
 	// CloudService Monitoring handling
 	if platform == deploy.ManagedRhods {
 		if err := d.UpdatePrometheusConfig(cli, enabled && monitoringEnabled, ComponentName); err != nil {
