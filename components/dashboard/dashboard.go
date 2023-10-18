@@ -80,7 +80,6 @@ func (d *Dashboard) ReconcileComponent(cli client.Client, owner metav1.Object, d
 		return err
 	}
 
-	
 	// Update Default rolebinding
 	if enabled {
 		// Download manifests and update paths

@@ -45,6 +45,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	
 	//+kubebuilder:scaffold:imports
 )
 
@@ -98,6 +100,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(routev1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(ofapi.AddToScheme(scheme.Scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme.Scheme))
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
