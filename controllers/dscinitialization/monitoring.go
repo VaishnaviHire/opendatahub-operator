@@ -30,10 +30,10 @@ var (
 	NamespaceConsoleLink    = "openshift-console"
 )
 
-// only when reconcile on DSCI CR, inital set to true
-// if reconcile from monitoring, inital set to false, skip blackbox and rolebinding
-func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization, inital bool) error {
-	if inital {
+// only when reconcile on DSCI CR, initial set to true
+// if reconcile from monitoring, initial set to false, skip blackbox and rolebinding
+func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsci.DSCInitialization, initial bool) error {
+	if initial {
 		// configure Blackbox exporter
 		if err := configureBlackboxExporter(ctx, dscInit, r); err != nil {
 			return fmt.Errorf("error in configureBlackboxExporter: %w", err)
@@ -50,7 +50,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 		return fmt.Errorf("error in configurePrometheus: %w", err)
 	}
 
-	if inital {
+	if initial {
 		err := common.UpdatePodSecurityRolebinding(r.Client, []string{"redhat-ods-monitoring"}, dscInit.Spec.Monitoring.Namespace)
 		if err != nil {
 			return fmt.Errorf("error to update monitoring security rolebinding: %w", err)
@@ -163,8 +163,13 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 	}
 
 	// Deploy prometheus manifests from prometheus/apps
-	err = deploy.DeployManifestsFromPath(r.Client, dsciInit, prometheusConfigPath, dsciInit.Spec.Monitoring.Namespace, "prometheus", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
-	if err != nil {
+	if err = deploy.DeployManifestsFromPath(
+		r.Client,
+		dsciInit,
+		prometheusConfigPath,
+		dsciInit.Spec.Monitoring.Namespace,
+		"prometheus",
+		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
 		r.Log.Error(err, "error to deploy manifests for prometheus configs", "path", prometheusConfigPath)
 		return err
 	}
@@ -268,15 +273,22 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 
 	blackBoxPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "blackbox-exporter")
 	if apierrs.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
-		err := deploy.DeployManifestsFromPath(r.Client, dsciInit, filepath.Join(blackBoxPath, "internal"), dsciInit.Spec.Monitoring.Namespace, "blackbox-exporter", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
-		if err != nil {
+		if err := deploy.DeployManifestsFromPath(r.Client,
+			dsciInit,
+			filepath.Join(blackBoxPath, "internal"),
+			dsciInit.Spec.Monitoring.Namespace,
+			"blackbox-exporter",
+			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
 			r.Log.Error(err, "error to deploy manifests: %w", err)
 			return err
 		}
-
 	} else {
-		err := deploy.DeployManifestsFromPath(r.Client, dsciInit, filepath.Join(blackBoxPath, "external"), dsciInit.Spec.Monitoring.Namespace, "blackbox-exporter", dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed)
-		if err != nil {
+		if err := deploy.DeployManifestsFromPath(r.Client,
+			dsciInit,
+			filepath.Join(blackBoxPath, "external"),
+			dsciInit.Spec.Monitoring.Namespace,
+			"blackbox-exporter",
+			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
 			r.Log.Error(err, "error to deploy manifests: %w", err)
 			return err
 		}

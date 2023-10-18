@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 
 	"path/filepath"
 	"reflect"
@@ -234,8 +235,9 @@ func (r *DSCInitializationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Pod{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.ServiceAccount{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.Service{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringSecretResrouce), builder.WithPredicates(SecretContentChangedPredicate)).
-		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMontiringConfigMapResrouce), builder.WithPredicates(CMContentChangedPredicate)).
+		Owns(&routev1.Route{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResrouce), builder.WithPredicates(SecretContentChangedPredicate)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResrouce), builder.WithPredicates(CMContentChangedPredicate)).
 		Complete(r)
 }
 
@@ -271,7 +273,7 @@ var CMContentChangedPredicate = predicate.Funcs{
 	},
 }
 
-func (r *DSCInitializationReconciler) watchMontiringConfigMapResrouce(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringConfigMapResrouce(a client.Object) (requests []reconcile.Request) {
 	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
 		r.Log.Info("Found monitoring configmap has updated, start reconcile")
 		return []reconcile.Request{{
@@ -282,7 +284,7 @@ func (r *DSCInitializationReconciler) watchMontiringConfigMapResrouce(a client.O
 	}
 }
 
-func (r *DSCInitializationReconciler) watchMontiringSecretResrouce(a client.Object) (requests []reconcile.Request) {
+func (r *DSCInitializationReconciler) watchMonitoringSecretResrouce(a client.Object) (requests []reconcile.Request) {
 	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == "redhat-ods-operator" {
 		r.Log.Info("Found monitoring secret has updated, start reconcile")
 		return []reconcile.Request{{
