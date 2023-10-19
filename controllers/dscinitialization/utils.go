@@ -3,14 +3,10 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
-	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-
 	ocuserv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
@@ -382,14 +378,4 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 		}
 	}
 	return nil
-}
-
-// Use openshift-console namespace to get host domain
-func GetDomain(cli client.Client, name string, namespace string) (string, error) {
-	consoleRoute := &routev1.Route{}
-	if err := cli.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, consoleRoute); err != nil {
-		return "", fmt.Errorf("error getting %s route URL: %w", name, err)
-	}
-	domainIndex := strings.Index(consoleRoute.Spec.Host, ".")
-	return consoleRoute.Spec.Host[domainIndex+1:], nil
 }

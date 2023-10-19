@@ -859,10 +859,12 @@ spec:
           resources:
           - kfdefs
           verbs:
+          - create
           - delete
           - get
           - list
           - patch
+          - update
           - watch
         - apiGroups:
           - kubeflow.org
@@ -1085,8 +1087,10 @@ spec:
           resources:
           - clusterserviceversions
           verbs:
+          - delete
           - get
           - list
+          - update
           - watch
         - apiGroups:
           - operators.coreos.com

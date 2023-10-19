@@ -9,7 +9,6 @@ import (
 
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 
@@ -214,7 +213,7 @@ func (d *Dashboard) deployISVManifests(cli client.Client, owner metav1.Object, n
 }
 
 func (d *Dashboard) deployConsoleLink(cli client.Client, owner metav1.Object, namespace string, componentName string, sectionTitle string, enabled bool) error {
-	consolelinkDomain, err := dscictrl.GetDomain(cli, NameConsoleLink, NamespaceConsoleLink)
+	consolelinkDomain, err := common.GetDomain(cli, NameConsoleLink, NamespaceConsoleLink)
 	if err != nil {
 		return fmt.Errorf("error getting %s route from %s: %w", NameConsoleLink, NamespaceConsoleLink, err)
 	}

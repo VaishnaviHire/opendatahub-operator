@@ -20,13 +20,16 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"os"
+	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 
 	kfdefv1 "github.com/opendatahub-io/opendatahub-operator/apis/kfdef.apps.kubeflow.org/v1"
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocv1 "github.com/openshift/api/oauth/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ocuserv1 "github.com/openshift/api/user/v1"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -36,35 +39,21 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	authv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
-	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	dsc "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsci "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
 	datascienceclustercontrollers "github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster"
 	dscicontr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -175,35 +164,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-
-	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
-	}
-
-	setupLog.Info("starting DSCI")
-	if err = initializeDSCInitialization(mgr, dscApplicationsNamespace, dscMonitoringNamespace); err != nil {
-		fmt.Printf("error creating DSCInitialization: %v", err)
-		os.Exit(1)
-	}
-
-	setupLog.Info("starting DSC")
-	if err = initializeDataScienceCluster(mgr); err != nil {
-		fmt.Printf("error creating DataScienceCluster: %v", err)
-		os.Exit(1)
-	}
-}
-
-func initializeDSCInitialization(mgr manager.Manager, dscApplicationsNs, dscMonitoringNs string) error {
+	//+kubebuilder:scaffold:builder
 	// Check if user opted for disabling DSC configuration
 	_, disableDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if !disableDSCConfig {
@@ -218,14 +179,14 @@ func initializeDSCInitialization(mgr manager.Manager, dscApplicationsNs, dscMoni
 				Name: "default",
 			},
 			Spec: dsci.DSCInitializationSpec{
-				ApplicationsNamespace: dscApplicationsNs,
+				ApplicationsNamespace: dscApplicationsNamespace,
 				Monitoring: dsci.Monitoring{
 					ManagementState: operatorv1.Managed,
-					Namespace:       dscMonitoringNs,
+					Namespace:       dscMonitoringNamespace,
 				},
 			},
 		}
-		err := client.Create(context.TODO(), releaseDscInitialization)
+		err = client.Create(context.TODO(), releaseDscInitialization)
 		switch {
 		case err == nil:
 			setupLog.Info("created DscInitialization resource")
@@ -235,90 +196,31 @@ func initializeDSCInitialization(mgr manager.Manager, dscApplicationsNs, dscMoni
 			data, err := json.Marshal(releaseDscInitialization)
 			if err != nil {
 				setupLog.Error(err, "failed to get DscInitialization custom resource data")
-				return err
 			}
 			err = client.Patch(context.TODO(), releaseDscInitialization, client2.RawPatch(types.ApplyPatchType, data),
 				client2.ForceOwnership, client2.FieldOwner("opendatahub-operator"))
 			if err != nil {
 				setupLog.Error(err, "failed to update DscInitialization custom resource")
-				return err
 			}
 		default:
 			setupLog.Error(err, "failed to create DscInitialization custom resource")
-			return err
+			os.Exit(1)
 		}
-	}
-	return nil
-}
 
-func initializeDataScienceCluster(mgr manager.Manager) error {
-	// Create DSCInitialization CR if it's not present
-	fmt.Println("Entering dsc function")
-	client := mgr.GetClient()
-	platform, err := deploy.GetPlatform(client)
-	fmt.Println(err.Error())
-	if err != nil {
-		return fmt.Errorf("failed to get platform: %v", err)
 	}
-	fmt.Printf("platform is name: %v", platform)
 
-	if platform != deploy.OpenDataHub && platform != deploy.ManagedRhods {
-		return nil
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		setupLog.Error(err, "unable to set up health check")
+		os.Exit(1)
 	}
-	releaseDataScienceCluster := &dsc.DataScienceCluster{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DataScienceCluster",
-			APIVersion: "datasciencecluster.opendatahub.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "default",
-		},
-		Spec: dsc.DataScienceClusterSpec{
-			Components: dsc.Components{
-				Dashboard: dashboard.Dashboard{
-					Component: components.Component{ManagementState: operatorv1.Managed},
-				},
-				Workbenches: workbenches.Workbenches{
-					Component: components.Component{ManagementState: operatorv1.Managed},
-				},
-				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{ManagementState: operatorv1.Managed},
-				},
-				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{ManagementState: operatorv1.Managed},
-				},
-				Kserve: kserve.Kserve{
-					Component: components.Component{ManagementState: operatorv1.Removed},
-				},
-				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{ManagementState: operatorv1.Managed},
-				},
-				Ray: ray.Ray{
-					Component: components.Component{ManagementState: operatorv1.Managed},
-				},
-			},
-		},
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		setupLog.Error(err, "unable to set up ready check")
+		os.Exit(1)
 	}
-	err = client.Create(context.TODO(), releaseDataScienceCluster)
-	switch {
-	case err == nil:
-		fmt.Printf("created DataScienceCluster resource")
-	case errors.IsAlreadyExists(err):
-		// Update if already exists
-		fmt.Printf("DataScienceCluster resource already exists. Updating it.")
-		data, err := json.Marshal(releaseDataScienceCluster)
-		if err != nil {
-			return fmt.Errorf("failed to get DataScienceCluster custom resource data: %v", err)
-		}
-		err = client.Patch(context.TODO(), releaseDataScienceCluster, client2.RawPatch(types.ApplyPatchType, data),
-			client2.ForceOwnership, client2.FieldOwner("opendatahub-operator"))
-		if err != nil {
-			setupLog.Error(err, "failed to update DataScienceCluster custom resource")
-			return err
-		}
-	default:
-		setupLog.Error(err, "failed to create DataScienceCluster custom resource")
-		return err
+
+	setupLog.Info("starting manager")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		setupLog.Error(err, "problem running manager")
+		os.Exit(1)
 	}
-	return nil
 }

@@ -5,6 +5,7 @@ import (
 	b64 "encoding/base64"
 	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -104,8 +105,12 @@ func configureAlertManager(ctx context.Context, dsciInit *dsci.DSCInitialization
 	}
 	// r.Log.Info("Success: inject alertmanage-configs.yaml")
 
+	operatorNs, err := upgrade.GetOperatorNamespace()
+	if err != nil {
+		return err
+	}
 	// Get SMTP receiver email secret (assume operator namespace for managed service is not configurable)
-	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", "redhat-ods-operator")
+	smtpEmailSecret, err := r.waitForManagedSecret(ctx, "addon-managed-odh-parameters", operatorNs)
 	if err != nil {
 		return fmt.Errorf("error getting smtp receiver email secret: %w", err)
 	}
@@ -147,7 +152,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsci.DSCInitialization, 
 		return err
 	}
 	// Update prometheus-config for dashboard, dsp and workbench
-	consolelinkDomain, err := GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
+	consolelinkDomain, err := common.GetDomain(r.Client, NameConsoleLink, NamespaceConsoleLink)
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %v", err)
 	} else {
@@ -279,7 +284,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
 			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-			r.Log.Error(err, "error to deploy manifests: %w", err)
+			r.Log.Error(err, "error to deploy manifests")
 			return err
 		}
 	} else {
@@ -289,7 +294,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsci.DSCInitializa
 			dsciInit.Spec.Monitoring.Namespace,
 			"blackbox-exporter",
 			dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-			r.Log.Error(err, "error to deploy manifests: %w", err)
+			r.Log.Error(err, "error to deploy manifests")
 			return err
 		}
 	}
