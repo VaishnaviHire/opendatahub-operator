@@ -213,7 +213,7 @@ func (f *Feature) copySecretToNamespace(secret *corev1.Secret, namespace string)
 	return err
 }
 
-// isSecretOutdated compares two secret data of type map[string][]byte and returns true if they are not equal equal
+// isSecretOutdated compares two secret data of type map[string][]byte and returns true if they are not equal.
 func isSecretOutdated(existingSecretData, newSecretData map[string][]byte) bool {
 	if len(existingSecretData) != len(newSecretData) {
 		return true
