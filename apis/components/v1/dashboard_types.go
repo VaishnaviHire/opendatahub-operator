@@ -24,18 +24,6 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// DashboardSpec defines the desired state of Dashboard
-type DashboardSpec struct {
-	// dashboard spec exposed to DSC api
-	DSCDashboard `json:""`
-	// dashboard spec exposed only to internal api
-}
-
-// DashboardStatus defines the observed state of Dashboard
-type DashboardStatus struct {
-	components.Status `json:",inline"`
-}
-
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
@@ -49,8 +37,28 @@ type Dashboard struct {
 	Status DashboardStatus `json:"status,omitempty"`
 }
 
-func (c *Dashboard) GetStatus() *components.Status {
-	return &c.Status.Status
+// DashboardSpec defines the desired state of Dashboard
+type DashboardSpec struct {
+	// dashboard spec exposed to DSC api
+	DSCDashboard `json:",inline"`
+	// dashboard spec exposed only to internal api
+}
+
+// DSCDashboard contains all the configuration exposed in DSC instance for Dashboard component
+type DSCDashboard struct {
+	// configuration fields common across components
+	components.Component `json:",inline"`
+	// configuration fields specific to the dashboard component
+}
+
+// DashboardStatus defines the observed state of Dashboard
+type DashboardStatus struct {
+	components.Status `json:",inline"`
+}
+
+// GetStatus returns the status of the Dashboard
+func (d *Dashboard) GetStatus() *components.Status {
+	return &d.Status.Status
 }
 
 // +kubebuilder:object:root=true
@@ -64,11 +72,4 @@ type DashboardList struct {
 
 func init() {
 	SchemeBuilder.Register(&Dashboard{}, &DashboardList{})
-}
-
-// DSCDashboard contains all the configuration exposed in DSC instance for Dashboard component
-type DSCDashboard struct {
-	// configuration fields common across components
-	components.Component `json:""`
-	// configuration fields specific to the dashboard component
 }

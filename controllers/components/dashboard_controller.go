@@ -20,38 +20,74 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
+
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/finalizers,verbs=update
+
+// +kubebuilder:rbac:groups="console.openshift.io",resources=odhquickstarts,verbs=create;get;patch;list;delete
+// +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete
+
+// +kubebuilder:rbac:groups="opendatahub.io",resources=odhdashboardconfigs,verbs=create;get;patch;watch;update;delete;list
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=create;get;patch;list;delete
+
+// +kubebuilder:rbac:groups="operators.coreos.com",resources=clusterserviceversions,verbs=get;list;watch;delete;update
+// +kubebuilder:rbac:groups="operators.coreos.com",resources=customresourcedefinitions,verbs=create;get;patch;delete
+// +kubebuilder:rbac:groups="operators.coreos.com",resources=subscriptions,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="operators.coreos.com",resources=operatorconditions,verbs=get;list;watch
+
+// +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
+// +kubebuilder:rbac:groups="authorization.openshift.io",resources=roles,verbs=*
+// +kubebuilder:rbac:groups="authorization.openshift.io",resources=rolebindings,verbs=*
+// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterroles,verbs=*
+// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterrolebindings,verbs=*
+
+// +kubebuilder:rbac:groups="*",resources=statefulsets,verbs=create;update;get;list;watch;patch;delete
+// +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
+
+// +kubebuilder:rbac:groups="apps",resources=deployments/finalizers,verbs=*
+// +kubebuilder:rbac:groups="*",resources=deployments,verbs=*
+
+// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch;create;patch;delete
+
+// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
+// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch;get
 
 var (
 	DashboardInstanceName = "default-dashboard"
 	ComponentName         = "dashboard"
-	ComponentNameUpstream = ComponentName
-	PathUpstream          = deploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/odh"
+
+	PathUpstream = deploy.DefaultManifestPath + "/" + ComponentName + "/odh"
 
 	ComponentNameDownstream = "rhods-dashboard"
-	PathDownstream          = deploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/rhoai"
+	PathDownstream          = deploy.DefaultManifestPath + "/" + ComponentName + "/rhoai"
 	PathSelfDownstream      = PathDownstream + "/onprem"
 	PathManagedDownstream   = PathDownstream + "/addon"
 	OverridePath            = ""
@@ -74,10 +110,11 @@ func NewDashboardReconciler(mgr ctrl.Manager) error {
 		},
 		// include only the types that must be deleted
 		Types: []client.Object{
-			&corev1.Secret{},
+			&corev1.Secret{}, // TODO: Why only delete secrets? no other types should be deleted for dashboard?
 		},
 		Labels: map[string]string{
-			"app.opendatahub.io/dashboard": "true",
+			// "app.opendatahub.io/dashboard": "true",
+			labels.ODH.Component(ComponentName): "true",
 		},
 	})
 
@@ -85,14 +122,14 @@ func NewDashboardReconciler(mgr ctrl.Manager) error {
 		return watchDashboardResources(ctx, a)
 	})
 
-	err := ctrl.NewControllerManagedBy(mgr).
+	if err := ctrl.NewControllerManagedBy(mgr).
 		For(&componentsv1.Dashboard{}).
 		// dependants
 		Watches(&appsv1.Deployment{}, eh).
-		Watches(&appsv1.ReplicaSet{}, eh).
+		// Watches(&appsv1.ReplicaSet{}, eh).
 		Watches(&corev1.Namespace{}, eh).
 		Watches(&corev1.ConfigMap{}, eh).
-		Watches(&corev1.PersistentVolumeClaim{}, eh).
+		// Watches(&corev1.PersistentVolumeClaim{}, eh).
 		Watches(&rbacv1.ClusterRoleBinding{}, eh).
 		Watches(&rbacv1.ClusterRole{}, eh).
 		Watches(&rbacv1.Role{}, eh).
@@ -100,9 +137,7 @@ func NewDashboardReconciler(mgr ctrl.Manager) error {
 		Watches(&corev1.ServiceAccount{}, eh).
 		// shared filter
 		WithEventFilter(dashboardPredicates).
-		Complete(r)
-
-	if err != nil {
+		Complete(r); err != nil {
 		return fmt.Errorf("could not create the dashboard controller: %w", err)
 	}
 
@@ -129,49 +164,9 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 	}
 }
 
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/finalizers,verbs=update
-// +kubebuilder:rbac:groups="opendatahub.io",resources=odhdashboardconfigs,verbs=create;get;patch;watch;update;delete;list
-// +kubebuilder:rbac:groups="console.openshift.io",resources=odhquickstarts,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=create;get;patch;list;delete
-// +kubebuilder:rbac:groups="operators.coreos.com",resources=clusterserviceversions,verbs=get;list;watch;delete;update
-// +kubebuilder:rbac:groups="operators.coreos.com",resources=customresourcedefinitions,verbs=create;get;patch;delete
-// +kubebuilder:rbac:groups="operators.coreos.com",resources=subscriptions,verbs=get;list;watch;delete
-// +kubebuilder:rbac:groups="operators.coreos.com",resources=operatorconditions,verbs=get;list;watch
-// +kubebuilder:rbac:groups="user.openshift.io",resources=groups,verbs=get;create;list;watch;patch;delete
-// +kubebuilder:rbac:groups="console.openshift.io",resources=consolelinks,verbs=create;get;patch;delete
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=roles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=rolebindings,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterroles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterrolebindings,verbs=*
-
-// +kubebuilder:rbac:groups="argoproj.io",resources=workflows,verbs=*
-
-// +kubebuilder:rbac:groups="apps",resources=statefulsets,verbs=*
-
-// +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=*
-
-// +kubebuilder:rbac:groups="apps",resources=deployments/finalizers,verbs=*
-// +kubebuilder:rbac:groups="core",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="apps",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="*",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="extensions",resources=deployments,verbs=*
-
-// +kubebuilder:rbac:groups="apiextensions.k8s.io",resources=customresourcedefinitions,verbs=get;list;watch;create;patch;delete
-
-// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
-// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch;get
-
-// +kubebuilder:rbac:groups="*",resources=statefulsets,verbs=create;update;get;list;watch;patch;delete
-
-// +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
-
-func watchDashboardResources(ctx context.Context, a client.Object) []reconcile.Request {
-
-	if a.GetLabels()["app.opendatahub.io/dashboard"] == "true" {
+func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Request {
+	// if a.GetLabels()["app.opendatahub.io/dashboard"] == "true" {
+	if a.GetLabels()[labels.ODH.Component(ComponentName)] == "true" {
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: DashboardInstanceName},
 		}}
@@ -181,18 +176,15 @@ func watchDashboardResources(ctx context.Context, a client.Object) []reconcile.R
 
 var dashboardPredicates = predicate.Funcs{
 	CreateFunc: func(e event.CreateEvent) bool {
-		if e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
-			return true
-		}
-		// Reconcile not needed during creation
-		return false
+		// Reconcile not needed during creation if match kind as dashboard
+		return e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
 		if e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
 			return true
 		}
 		labelList := e.Object.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
+		if value, exist := labelList[labels.ODH.Component(ComponentName)]; exist && value == "true" {
 			return true
 		}
 		return false
@@ -202,7 +194,7 @@ var dashboardPredicates = predicate.Funcs{
 			return true
 		}
 		labelList := e.ObjectOld.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
+		if value, exist := labelList[labels.ODH.Component(ComponentName)]; exist && value == "true" {
 			return true
 		}
 		return false
@@ -229,8 +221,8 @@ func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cl
 		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
 	}
 	consoleURL := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		cluster.ManagedRhods:     "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		cluster.SelfManagedRhods: "https://" + ComponentNameDownstream + "-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		cluster.ManagedRhods:     "https://" + ComponentNameDownstream + "-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 		cluster.OpenDataHub:      "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 		cluster.Unknown:          "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 	}[platform]
@@ -242,15 +234,10 @@ func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cl
 	}, nil
 }
 
-// Action implementations
-
-type InitializeAction struct {
-	BaseAction
-}
-
+// Action implementations.
 func (a *InitializeAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
 	// Implement initialization logic
-	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
+	a.Log = logf.FromContext(ctx).WithName(ComponentName)
 
 	imageParamMap := map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
@@ -263,23 +250,17 @@ func (a *InitializeAction) Execute(ctx context.Context, rr *ReconciliationReques
 	}
 	DefaultPath = manifestMap[rr.Platform]
 
-	rr.Manifests = Manifests{
-		Paths: manifestMap,
-	}
+	rr.ManifestsPath = manifestMap
 
 	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", DefaultPath)
+		a.Log.Error(err, "failed to update image", "path", DefaultPath)
 	}
 
 	return nil
 }
 
-type SupportDevFlagsAction struct {
-	BaseAction
-}
-
 func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
-	dashboard := rr.Instance.(*componentsv1.Dashboard)
+	dashboard, _ := rr.Instance.(*componentsv1.Dashboard)
 	if dashboard.Spec.DevFlags == nil {
 		return nil
 	}
@@ -287,18 +268,20 @@ func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *ReconciliationR
 	// If dev flags are set, update default manifests path
 	if len(dashboard.Spec.DevFlags.Manifests) != 0 {
 		manifestConfig := dashboard.Spec.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ctx, ComponentNameUpstream, manifestConfig); err != nil {
+		if err := deploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
 			return err
 		}
 		if manifestConfig.SourcePath != "" {
-			// r.entryPath = filepath.Join(deploy.DefaultManifestPath, ComponentNameUpstream, manifestConfig.SourcePath)
+			// TODO
+			// r.entryPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, manifestConfig.SourcePath)
 		}
 	}
-	return nil
-}
 
-type CleanupOAuthClientAction struct {
-	BaseAction
+	if rr.DSCI.Spec.DevFlags != nil {
+		mode := rr.DSCI.Spec.DevFlags.LogMode
+		a.Log = ctrlogger.NewNamedLogger(logf.FromContext(ctx), ComponentName, mode)
+	}
+	return nil
 }
 
 func (a *CleanupOAuthClientAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
@@ -326,10 +309,6 @@ func (a *CleanupOAuthClientAction) Execute(ctx context.Context, rr *Reconciliati
 	}
 
 	return nil
-}
-
-type DeployComponentAction struct {
-	BaseAction
 }
 
 func (a *DeployComponentAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {
@@ -365,7 +344,13 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *ReconciliationR
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
 		// Deploy RHOAI manifests
-		if err := deploy.DeployManifestsFromPath(ctx, rr.Client, rr.Instance, rr.Manifests.Paths[rr.Platform], rr.DSCI.Spec.ApplicationsNamespace, ComponentNameDownstream, true); err != nil {
+		if err := deploy.DeployManifestsFromPath(
+			ctx,
+			rr.Client,
+			rr.Instance,
+			rr.ManifestsPath[rr.Platform],
+			rr.DSCI.Spec.ApplicationsNamespace,
+			ComponentNameDownstream, true); err != nil {
 			return fmt.Errorf("failed to apply manifests from %s: %w", PathDownstream, err)
 		}
 		a.Log.Info("apply manifests done")
@@ -378,20 +363,21 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *ReconciliationR
 
 	default:
 		// Deploy ODH manifests
-		if err := deploy.DeployManifestsFromPath(ctx, rr.Client, rr.Instance, rr.Manifests.Paths[cluster.OpenDataHub], rr.DSCI.Spec.ApplicationsNamespace, ComponentNameUpstream, true); err != nil {
+		if err := deploy.DeployManifestsFromPath(
+			ctx, rr.Client,
+			rr.Instance,
+			rr.ManifestsPath[cluster.OpenDataHub],
+			rr.DSCI.Spec.ApplicationsNamespace,
+			ComponentName, true); err != nil {
 			return err
 		}
 		a.Log.Info("apply manifests done")
 
-		if err := cluster.WaitForDeploymentAvailable(ctx, rr.Client, ComponentNameUpstream, rr.DSCI.Spec.ApplicationsNamespace, 20, 3); err != nil {
-			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentNameUpstream, err)
+		if err := cluster.WaitForDeploymentAvailable(ctx, rr.Client, ComponentName, rr.DSCI.Spec.ApplicationsNamespace, 20, 3); err != nil {
+			return fmt.Errorf("deployment for %s is not ready to server: %w", ComponentName, err)
 		}
 	}
 	return nil
-}
-
-type UpdateStatusAction struct {
-	BaseAction
 }
 
 func (a *UpdateStatusAction) Execute(ctx context.Context, rr *ReconciliationRequest) error {

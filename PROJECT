@@ -39,6 +39,7 @@ resources:
     webhookVersion: v1
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -49,6 +50,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -59,6 +61,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -69,6 +72,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -79,6 +83,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -89,6 +94,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -99,6 +105,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -109,6 +116,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -119,6 +127,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -129,6 +138,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components
@@ -139,6 +149,7 @@ resources:
     validation: false
 - api:
     crdVersion: v1
+    namespaced: false
   controller: true
   domain: opendatahub.io
   group: components

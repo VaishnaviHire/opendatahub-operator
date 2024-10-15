@@ -19,10 +19,9 @@ package main
 import (
 	"context"
 	"flag"
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"os"
 
-	"github.com/hashicorp/go-multierror"
+	// "github.com/hashicorp/go-multierror".
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -57,6 +56,7 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
@@ -80,7 +80,6 @@ var (
 )
 
 func init() { //nolint:gochecknoinits
-
 	utilruntime.Must(componentsv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -107,21 +106,21 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(operatorv1.Install(scheme))
 }
 
-func initComponents(ctx context.Context, p cluster.Platform) error {
-	var errs *multierror.Error
-	var dummyDSC = &dscv1.DataScienceCluster{}
+// func initComponents(ctx context.Context, p cluster.Platform) error {
+// 	var errs *multierror.Error
+// 	var dummyDSC = &dscv1.DataScienceCluster{}
 
-	components, err := dummyDSC.GetComponents()
-	if err != nil {
-		return err
-	}
+// 	components, err := dummyDSC.GetComponents()
+// 	if err != nil {
+// 		return err
+// 	}
 
-	for _, c := range components {
-		errs = multierror.Append(errs, c.Init(ctx, p))
-	}
+// 	for _, c := range components {
+// 		errs = multierror.Append(errs, c.Init(ctx, p))
+// 	}
 
-	return errs.ErrorOrNil()
-}
+// 	return errs.ErrorOrNil()
+// }
 
 func main() { //nolint:funlen,maintidx
 	var metricsAddr string
@@ -284,10 +283,7 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	if err = componentsctrl.NewDashboardReconciler(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
-		os.Exit(1)
-	}
+	CreateComponentReconcilers(mgr)
 
 	// get old release version before we create default DSCI CR
 	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
@@ -387,4 +383,12 @@ func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Con
 	// for modelregistry namespace
 	namespaceConfigs[modelregistry.DefaultModelRegistriesNamespace] = cache.Config{}
 	return namespaceConfigs
+}
+
+func CreateComponentReconcilers(mgr manager.Manager) {
+	// TODO: add more here or make it go routine
+	if err := componentsctrl.NewDashboardReconciler(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DashboardReconciler")
+		os.Exit(1)
+	}
 }

@@ -27,7 +27,7 @@ import (
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 )
 
-// DataSciencePipelinesReconciler reconciles a DataSciencePipelines object
+// DataSciencePipelinesReconciler reconciles a DataSciencePipelines object.
 type DataSciencePipelinesReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -36,6 +36,8 @@ type DataSciencePipelinesReconciler struct {
 //+kubebuilder:rbac:groups=components.opendatahub.io,resources=datasciencepipelines,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=components.opendatahub.io,resources=datasciencepipelines/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=components.opendatahub.io,resources=datasciencepipelines/finalizers,verbs=update
+
+// +kubebuilder:rbac:groups="argoproj.io",resources=workflows,verbs=*
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

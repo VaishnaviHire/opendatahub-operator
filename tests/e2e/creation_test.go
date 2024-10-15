@@ -391,7 +391,7 @@ func (tc *testContext) testOwnerrefrences() error {
 	// Test any one of the apps
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
+			LabelSelector: labels.ODH.Component(componentctrl.ComponentName),
 		})
 		if err != nil {
 			return fmt.Errorf("error listing component deployments %w", err)
@@ -507,14 +507,14 @@ func (tc *testContext) testUpdateComponentReconcile() error {
 	// Test Updating Dashboard Replicas
 
 	appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
+		LabelSelector: labels.ODH.Component(componentctrl.ComponentName),
 	})
 	if err != nil {
 		return err
 	}
 
 	if len(appDeployments.Items) != 1 {
-		return fmt.Errorf("error getting deployment for component %s", componentctrl.ComponentNameUpstream)
+		return fmt.Errorf("error getting deployment for component %s", componentctrl.ComponentName)
 	}
 
 	const expectedReplica int32 = 3
@@ -558,10 +558,10 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 
 	if tc.testDsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
 		appDeployments, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.Component(componentctrl.ComponentNameUpstream),
+			LabelSelector: labels.ODH.Component(componentctrl.ComponentName),
 		})
 		if err != nil {
-			return fmt.Errorf("error getting enabled component %v", componentctrl.ComponentNameUpstream)
+			return fmt.Errorf("error getting enabled component %v", componentctrl.ComponentName)
 		}
 		if len(appDeployments.Items) > 0 {
 			dashboardDeploymentName = appDeployments.Items[0].Name
@@ -608,7 +608,7 @@ func (tc *testContext) testUpdateDSCComponentEnabled() error {
 		return fmt.Errorf("error getting component resource after reconcile: %w", err)
 	}
 	return fmt.Errorf("component %v is disabled, should not get its deployment %v from NS %v any more",
-		componentctrl.ComponentNameUpstream,
+		componentctrl.ComponentName,
 		dashboardDeploymentName,
 		tc.applicationsNamespace)
 }

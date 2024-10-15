@@ -14,14 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package components
+package components_test
 
 import (
 	"path/filepath"
 	"testing"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -31,7 +28,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
-	//+kubebuilder:scaffold:imports
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

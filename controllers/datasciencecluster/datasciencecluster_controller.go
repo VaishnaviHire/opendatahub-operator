@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	"reflect"
 	"strings"
 	"time"
@@ -51,13 +50,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
 	componentsctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	annotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -84,7 +83,7 @@ const (
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx,gocyclo
+func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:maintidx
 	log := r.Log
 	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
 
@@ -115,8 +114,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	instance := &instances.Items[0]
 
-	//allComponents, err := instance.GetComponents()
-	//if err != nil {
+	// allComponents, err := instance.GetComponents()
+	// if err != nil {
 	//	return ctrl.Result{}, err
 	//}
 
@@ -138,7 +137,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 				return reconcile.Result{}, err
 			}
 		}
-		//for _, component := range allComponents {
+		// for _, component := range allComponents {
 		//	if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
 		//		return ctrl.Result{}, err
 		//	}
@@ -189,7 +188,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	} else {
 		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		//for _, component := range allComponents {
+		// for _, component := range allComponents {
 		//	if err := component.Cleanup(ctx, r.Client, instance, r.DataScienceCluster.DSCISpec); err != nil {
 		//		return ctrl.Result{}, err
 		//	}
@@ -242,7 +241,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
-	// Deploy Dashboard
+	// Reconcile Dashboard
 	if instance, err = r.reconcileDashboardComponent(ctx, instance); err != nil {
 		componentErrors = multierror.Append(componentErrors, err)
 	}
@@ -287,6 +286,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	return ctrl.Result{}, nil
 }
 
+// TODO: make it generic for all components.
 func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.Context, instance *dscv1.DataScienceCluster) (*dscv1.DataScienceCluster, error) {
 	r.Log.Info("Starting reconciliation of Dashboard component")
 	componentName := componentsctrl.ComponentName
@@ -310,8 +310,9 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 
 	// Create the Dashboard instance
 	dashboard := componentsctrl.CreateDashboardInstance(instance)
+	// TODO: could it be nil?
 	if dashboard == nil {
-		return instance, fmt.Errorf("failed to create Dashboard instance: CreateDashboardInstance returned nil")
+		return instance, errors.New("failed to create Dashboard instance: CreateDashboardInstance returned nil")
 	}
 	r.Log.Info("Created Dashboard instance", "type", reflect.TypeOf(dashboard))
 
@@ -346,15 +347,6 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 	return instance, nil
 }
 
-// newComponentLogger is a wrapper to add DSC name and extract log mode from DSCISpec.
-func newComponentLogger(logger logr.Logger, componentName string, dscispec *dsciv1.DSCInitializationSpec) logr.Logger {
-	mode := ""
-	if dscispec.DevFlags != nil {
-		mode = dscispec.DevFlags.LogMode
-	}
-	return ctrlogger.NewNamedLogger(logger, "DSC.Components."+componentName, mode)
-}
-
 func (r *DataScienceClusterReconciler) reportError(err error, instance *dscv1.DataScienceCluster, message string) *dscv1.DataScienceCluster {
 	log := r.Log
 	log.Error(err, message, "instance.Name", instance.Name)
@@ -380,7 +372,7 @@ var configMapPredicates = predicate.Funcs{
 
 func (r *DataScienceClusterReconciler) apply(ctx context.Context, dsc *dscv1.DataScienceCluster, obj client.Object) error {
 	if obj.GetObjectKind().GroupVersionKind().Empty() {
-		return fmt.Errorf("no groupversionkind defined")
+		return errors.New("no groupversionkind defined")
 	}
 	if err := ctrl.SetControllerReference(dsc, obj, r.Scheme); err != nil {
 		return err
