@@ -1,6 +1,7 @@
 package actions_test
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -13,7 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-func NewFakeClient(objs ...ctrlClient.Object) ctrlClient.WithWatch { //nolint:ireturn
+func NewFakeClient(objs ...ctrlClient.Object) (*client.Client, error) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
@@ -21,18 +22,17 @@ func NewFakeClient(objs ...ctrlClient.Object) ctrlClient.WithWatch { //nolint:ir
 	fakeMapper := meta.NewDefaultRESTMapper(scheme.PreferredVersionAllGroups())
 	for gvk := range scheme.AllKnownTypes() {
 		fakeMapper.Add(gvk, meta.RESTScopeNamespace)
-		// switch {
-		//// TODO: add cases for cluster scoped
-		//default:
-		//	fakeMapper.Add(gvk, meta.RESTScopeNamespace)
-		//}
 	}
 
-	return fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithRESTMapper(fakeMapper).
-		WithObjects(objs...).
-		Build()
+	return client.New(
+		nil,
+		nil,
+		fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithRESTMapper(fakeMapper).
+			WithObjects(objs...).
+			Build(),
+	)
 }
 
 func ExtractStatusCondition(conditionType string) func(in types.ResourceObject) metav1.Condition {

@@ -72,13 +72,15 @@ func (a *UpdateStatusAction) Execute(ctx context.Context, rr *types.Reconciliati
 	}
 
 	s := obj.GetStatus()
+	s.ObservedGeneration = obj.GetGeneration()
 	s.Phase = "Ready"
 
 	conditionReady := metav1.Condition{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionTrue,
-		Reason:  ReadyReason,
-		Message: fmt.Sprintf("%d/%d deployments ready", ready, len(deployments.Items)),
+		Type:               status.ConditionTypeReady,
+		Status:             metav1.ConditionTrue,
+		Reason:             ReadyReason,
+		Message:            fmt.Sprintf("%d/%d deployments ready", ready, len(deployments.Items)),
+		ObservedGeneration: s.ObservedGeneration,
 	}
 
 	if len(deployments.Items) > 0 && ready != len(deployments.Items) {
