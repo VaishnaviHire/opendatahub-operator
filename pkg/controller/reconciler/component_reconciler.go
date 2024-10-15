@@ -101,7 +101,7 @@ func (r *ComponentReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request
 		DSC:       &dscl.Items[0],
 		DSCI:      &dscil.Items[0],
 		Platform:  r.Platform,
-		Manifests: make(map[cluster.Platform]string),
+		Manifests: make([]types.ManifestInfo, 0),
 	}
 
 	// Handle deletion

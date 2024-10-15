@@ -26,7 +26,7 @@ func TestDeleteResourcesAction(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	client := NewFakeClient(
+	client, err := NewFakeClient(
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: gvk.Deployment.GroupVersion().String(),
@@ -55,12 +55,14 @@ func TestDeleteResourcesAction(t *testing.T) {
 		},
 	)
 
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	action := actions.NewDeleteResourcesAction(
 		ctx,
 		actions.WithDeleteResourcesTypes(&appsv1.Deployment{}),
 		actions.WithDeleteResourcesLabel(labels.K8SCommon.PartOf, "foo"))
 
-	err := action.Execute(ctx, &types.ReconciliationRequest{
+	err = action.Execute(ctx, &types.ReconciliationRequest{
 		Client:   client,
 		Instance: nil,
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},

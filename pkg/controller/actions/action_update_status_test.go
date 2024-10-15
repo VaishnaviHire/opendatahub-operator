@@ -30,7 +30,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	client := NewFakeClient(
+	client, err := NewFakeClient(
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: gvk.Deployment.GroupVersion().String(),
@@ -67,6 +67,8 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 		},
 	)
 
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	action := actions.NewUpdateStatusAction(
 		ctx,
 		actions.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
@@ -79,7 +81,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 		Platform: cluster.OpenDataHub,
 	}
 
-	err := action.Execute(ctx, &rr)
+	err = action.Execute(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -100,7 +102,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	client := NewFakeClient(
+	client, err := NewFakeClient(
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: gvk.Deployment.GroupVersion().String(),
@@ -137,6 +139,8 @@ func TestUpdateStatusActionReady(t *testing.T) {
 		},
 	)
 
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	action := actions.NewUpdateStatusAction(
 		ctx,
 		actions.WithUpdateStatusLabel(labels.K8SCommon.PartOf, "foo"))
@@ -149,7 +153,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 		Platform: cluster.OpenDataHub,
 	}
 
-	err := action.Execute(ctx, &rr)
+	err = action.Execute(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(err).ShouldNot(HaveOccurred())

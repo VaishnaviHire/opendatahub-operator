@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
@@ -14,21 +13,14 @@ func NewFromManager(ctx context.Context, mgr ctrl.Manager) (*Client, error) {
 	return New(ctx, mgr.GetConfig(), mgr.GetClient())
 }
 
-func New(_ context.Context, cfg *rest.Config, client ctrlCli.Client) (*Client, error) {
-	k8sCli, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("unable to construct a playground client: %w", err)
-	}
-
+func New(_ context.Context, _ *rest.Config, client ctrlCli.Client) (*Client, error) {
 	return &Client{
 		Client: client,
-		K:      k8sCli,
 	}, nil
 }
 
 type Client struct {
 	ctrlCli.Client
-	K kubernetes.Interface
 }
 
 func (c *Client) Apply(ctx context.Context, obj ctrlCli.Object, opts ...ctrlCli.PatchOption) error {
