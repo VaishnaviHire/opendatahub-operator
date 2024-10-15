@@ -1,55 +1,33 @@
-package components
+package types
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+
 	"github.com/go-logr/logr"
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-type Action interface {
-	Execute(ctx context.Context, rr *ReconciliationRequest) error
-}
-
-type BaseAction struct {
-	Log logr.Logger
-}
-
-type ResourceObject interface {
-	client.Object
-	components.WithStatus
-}
-
-type ReconciliationRequest struct {
-	client.Client
-	Instance  client.Object
-	DSC       *dscv1.DataScienceCluster
-	DSCI      *dsciv1.DSCInitialization
-	Platform  cluster.Platform
-	Manifests Manifests
-}
-
-type Manifests struct {
-	Paths map[cluster.Platform]string
-}
-
-type BaseReconciler[T ResourceObject] struct {
-	Client     client.Client
+type ComponentReconciler[T types.ResourceObject] struct {
+	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
-	Actions    []Action
-	Finalizer  []Action
+	Actions    []actions.Action
+	Finalizer  []actions.Action
 	Log        logr.Logger
 	Manager    manager.Manager
 	Controller controller.Controller
@@ -57,29 +35,44 @@ type BaseReconciler[T ResourceObject] struct {
 	Platform   cluster.Platform
 }
 
-func NewBaseReconciler[T ResourceObject](mgr manager.Manager, name string) *BaseReconciler[T] {
-	return &BaseReconciler[T]{
-		Client:   mgr.GetClient(),
+func NewComponentReconciler[T types.ResourceObject](ctx context.Context, mgr manager.Manager, name string) (*ComponentReconciler[T], error) {
+	oc, err := odhClient.NewFromManager(ctx, mgr)
+	if err != nil {
+		return nil, err
+	}
+
+	cc := ComponentReconciler[T]{
+		Client:   oc,
 		Scheme:   mgr.GetScheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
 		Manager:  mgr,
 		Recorder: mgr.GetEventRecorderFor(name),
 		Platform: cluster.GetRelease().Name,
 	}
+
+	return &cc, nil
 }
 
-func (r *BaseReconciler[T]) AddAction(action Action) {
+func (r *ComponentReconciler[T]) GetLogger() logr.Logger {
+	return r.Log
+}
+
+func (r *ComponentReconciler[T]) AddAction(action actions.Action) {
 	r.Actions = append(r.Actions, action)
 }
 
-func (r *BaseReconciler[T]) AddFinalizer(action Action) {
+func (r *ComponentReconciler[T]) AddFinalizer(action actions.Action) {
 	r.Finalizer = append(r.Finalizer, action)
 }
 
-func (r *BaseReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ComponentReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 
-	res := reflect.New(reflect.TypeOf(*new(T)).Elem()).Interface().(T)
+	t := reflect.TypeOf(*new(T)).Elem()
+	res, ok := reflect.New(t).Interface().(T)
+	if !ok {
+		return ctrl.Result{}, fmt.Errorf("unable to construct instance of %v", t)
+	}
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Name}, res); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -102,13 +95,13 @@ func (r *BaseReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, errors.New("unable to find DSCInitialization")
 	}
 
-	rr := ReconciliationRequest{
+	rr := types.ReconciliationRequest{
 		Client:   r.Client,
 		Instance: res,
 		DSC:      &dscl.Items[0],
 		DSCI:     &dscil.Items[0],
 		Platform: r.Platform,
-		Manifests: Manifests{
+		Manifests: types.Manifests{
 			Paths: make(map[cluster.Platform]string),
 		},
 	}
@@ -132,6 +125,18 @@ func (r *BaseReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			l.Error(err, "Failed to execute action", "action", fmt.Sprintf("%T", action))
 			return ctrl.Result{}, err
 		}
+	}
+
+	// update status
+	err := r.Client.ApplyStatus(
+		ctx,
+		rr.Instance,
+		client.FieldOwner(rr.Instance.GetName()),
+		client.ForceOwnership,
+	)
+
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
