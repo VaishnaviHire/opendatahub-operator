@@ -61,6 +61,38 @@ var (
 	PathManagedDownstream   = PathDownstream + "/addon"
 	OverridePath            = ""
 	DefaultPath             = ""
+
+	adminGroups = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "rhods-admins",
+		cluster.ManagedRhods:     "dedicated-admins",
+		cluster.OpenDataHub:      "odh-admins",
+		cluster.Unknown:          "odh-admins",
+	}
+
+	sectionTitle = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "OpenShift Self Managed Services",
+		cluster.ManagedRhods:     "OpenShift Managed Services",
+		cluster.OpenDataHub:      "OpenShift Open Data Hub",
+		cluster.Unknown:          "OpenShift Open Data Hub",
+	}
+
+	baseConsoleURL = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "https://rhods-dashboard-",
+		cluster.ManagedRhods:     "https://rhods-dashboard-",
+		cluster.OpenDataHub:      "https://odh-dashboard-",
+		cluster.Unknown:          "https://odh-dashboard-",
+	}
+
+	manifestPaths = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream + "/onprem",
+		cluster.ManagedRhods:     PathDownstream + "/addon",
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}
+
+	imagesMap = map[string]string{
+		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	}
 )
 
 func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -240,58 +272,26 @@ func dashboardWatchPredicate(componentName string) predicate.Funcs {
 	}
 }
 
-//nolint:unused
-func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
-	adminGroups := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "rhods-admins",
-		cluster.ManagedRhods:     "dedicated-admins",
-		cluster.OpenDataHub:      "odh-admins",
-		cluster.Unknown:          "odh-admins",
-	}[platform]
-
-	sectionTitle := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "OpenShift Self Managed Services",
-		cluster.ManagedRhods:     "OpenShift Managed Services",
-		cluster.OpenDataHub:      "OpenShift Open Data Hub",
-		cluster.Unknown:          "OpenShift Open Data Hub",
-	}[platform]
-
-	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
-	if err != nil {
-		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
-	}
-	consoleURL := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		cluster.ManagedRhods:     "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		cluster.OpenDataHub:      "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		cluster.Unknown:          "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-	}[platform]
-
-	return map[string]string{
-		"admin_groups":  adminGroups,
-		"dashboard-url": consoleURL,
-		"section-title": sectionTitle,
-	}, nil
-}
-
 // TODO added only to avoid name collision
 
 type Dashboard struct{}
 
+func (d Dashboard) updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
+	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
+	if err != nil {
+		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
+	}
+
+	return map[string]string{
+		"admin_groups":  adminGroups[platform],
+		"dashboard-url": baseConsoleURL[platform] + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		"section-title": sectionTitle[platform],
+	}, nil
+}
+
 func (d Dashboard) initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Implement initialization logic
 	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
-
-	imageParamMap := map[string]string{
-		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
-	}
-	manifestMap := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathDownstream + "/onprem",
-		cluster.ManagedRhods:     PathDownstream + "/addon",
-		cluster.OpenDataHub:      PathUpstream,
-		cluster.Unknown:          PathUpstream,
-	}
-	DefaultPath = manifestMap[rr.Platform]
 
 	componentName := ComponentNameUpstream
 	if rr.Platform == cluster.SelfManagedRhods || rr.Platform == cluster.ManagedRhods {
@@ -299,7 +299,7 @@ func (d Dashboard) initialize(ctx context.Context, rr *odhtypes.ReconciliationRe
 	}
 
 	rr.Manifests = []odhtypes.ManifestInfo{{
-		Path:       DefaultPath,
+		Path:       manifestPaths[rr.Platform],
 		ContextDir: "",
 		SourcePath: "",
 		RenderOpts: []kustomize.RenderOptsFn{
@@ -308,19 +308,15 @@ func (d Dashboard) initialize(ctx context.Context, rr *odhtypes.ReconciliationRe
 		},
 	}}
 
-
-	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", DefaultPath)
+	if err := deploy.ApplyParams(rr.Manifests[0].ManifestsPath(), imagesMap); err != nil {
+		log.Error(err, "failed to update image", "path", rr.Manifests[0].ManifestsPath())
 	}
 
-	// 2. Append or Update variable for component to consume
-	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
+	extraParamsMap, err := d.updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
 	if err != nil {
 		return errors.New("failed to set variable for extraParamsMap")
 	}
 
-	// 3. update params.env regardless devFlags is provided of not
-	// We need this for downstream
 	if err := deploy.ApplyParams(rr.Manifests[0].ManifestsPath(), nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[0].ManifestsPath(), err)
 	}
