@@ -1,6 +1,8 @@
 package actions_test
 
 import (
+	"context"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -14,7 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-func NewFakeClient(objs ...ctrlClient.Object) (*client.Client, error) {
+func NewFakeClient(ctx context.Context, objs ...ctrlClient.Object) (*client.Client, error) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
@@ -25,7 +27,7 @@ func NewFakeClient(objs ...ctrlClient.Object) (*client.Client, error) {
 	}
 
 	return client.New(
-		nil,
+		ctx,
 		nil,
 		fake.NewClientBuilder().
 			WithScheme(scheme).
