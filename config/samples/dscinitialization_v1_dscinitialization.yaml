@@ -9,9 +9,16 @@ metadata:
     app.kubernetes.io/created-by: opendatahub-operator
   name: default-dsci
 spec:
+  monitoring:
+    managementState: "Managed"
+    namespace: 'opendatahub'
   applicationsNamespace: 'opendatahub'
   serviceMesh:
-    managementState: "Removed"
+    controlPlane:
+      metricsCollection: Istio
+      name: data-science-smcp
+      namespace: istio-system
+    managementState: "Managed"
   trustedCABundle:
     managementState: "Managed"
     customCABundle: ""

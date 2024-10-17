@@ -3,8 +3,8 @@ package actions
 import (
 	"context"
 	"encoding/json"
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"fmt"
+
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -13,7 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 type DeployMode int
@@ -100,6 +102,8 @@ func (r *DeployAction) Execute(ctx context.Context, rr *odhTypes.ReconciliationR
 
 func (r *DeployAction) patch(ctx context.Context, c *odhClient.Client, obj unstructured.Unstructured) error {
 	found := unstructured.Unstructured{}
+	found.SetGroupVersionKind(obj.GroupVersionKind())
+
 	err := c.Get(ctx, client.ObjectKeyFromObject(&obj), &found)
 	if err != nil {
 		return err
@@ -129,9 +133,11 @@ func (r *DeployAction) apply(ctx context.Context, c *odhClient.Client, obj unstr
 	switch obj.GroupVersionKind() {
 	case gvk.Deployment:
 		found := unstructured.Unstructured{}
+		found.SetGroupVersionKind(obj.GroupVersionKind())
+
 		err := c.Get(ctx, client.ObjectKeyFromObject(&obj), &found)
 		if err != nil && !k8serr.IsNotFound(err) {
-			return err
+			return fmt.Errorf("failed to retrieve Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
 
 		// For deployments, we allow the user to change some parameters, such as
@@ -144,7 +150,7 @@ func (r *DeployAction) apply(ctx context.Context, c *odhClient.Client, obj unstr
 		}
 
 		if err := MergeDeployments(&found, &obj); err != nil {
-			return err
+			return fmt.Errorf("failed to merge Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
 	default:
 		// do noting
@@ -159,7 +165,7 @@ func (r *DeployAction) apply(ctx context.Context, c *odhClient.Client, obj unstr
 	)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("apply failed %s: %w", obj.GroupVersionKind(), err)
 	}
 
 	return nil

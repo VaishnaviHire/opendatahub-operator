@@ -13,16 +13,26 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 	// Resources
 	//
 
-	sourceContainers, ok, err := unstructured.NestedSlice(source.Object, containersPath...)
+	sc, ok, err := unstructured.NestedFieldNoCopy(source.Object, containersPath...)
 	if err != nil && ok {
 		return err
 	}
-	targetContainers, ok, err := unstructured.NestedSlice(target.Object, containersPath...)
+	tc, ok, err := unstructured.NestedFieldNoCopy(target.Object, containersPath...)
 	if err != nil && ok {
 		return err
 	}
 
 	resources := make(map[string]interface{})
+
+	var sourceContainers []interface{}
+	if sc != nil {
+		sourceContainers = sc.([]interface{})
+	}
+
+	var targetContainers []interface{}
+	if tc != nil {
+		targetContainers = tc.([]interface{})
+	}
 
 	for i := range sourceContainers {
 		m := sourceContainers[i].(map[string]interface{})
@@ -57,12 +67,6 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 			delete(m, "resources")
 		} else {
 			m["resources"] = nr
-		}
-	}
-
-	if len(targetContainers) != 0 {
-		if err := unstructured.SetNestedSlice(target.Object, targetContainers, containersPath...); err != nil {
-			return err
 		}
 	}
 

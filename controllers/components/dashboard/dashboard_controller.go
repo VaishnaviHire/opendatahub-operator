@@ -24,10 +24,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -78,6 +78,7 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 	r.AddAction(actions.NewRenderManifestsAction(
 		actionCtx,
+		actions.WithRenderManifestsAllowList(false),
 		actions.WithRenderManifestsOptions(
 			kustomize.WithEngineRenderOpts(
 				kustomize.WithLabel(labels.ComponentName, ComponentName),
@@ -89,6 +90,7 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 	r.AddAction(actions.NewDeployAction(
 		actionCtx,
+		actions.WithDeployedMode(actions.DeployModeSSA),
 		actions.WithDeployedResourceFieldOwner(ComponentName),
 	))
 
@@ -97,26 +99,30 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		actions.WithUpdateStatusLabel(labels.ComponentName, ComponentName),
 	))
 
-	// finalization
-	r.AddFinalizer(actions.NewActionFn(ctx, d.cleanupOAuthClient))
+	predicates := make([]predicate.Predicate, 0)
+	switch r.Platform {
+	case cluster.SelfManagedRhods, cluster.ManagedRhods:
+		predicates = append(predicates, dashboardWatchPredicate(ComponentNameUpstream))
+	default:
+		predicates = append(predicates, dashboardWatchPredicate(ComponentNameDownstream))
+	}
 
 	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
+	ef := builder.WithPredicates(predicates...)
 
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&componentsv1.Dashboard{}).
 		// dependants
-		Watches(&appsv1.Deployment{}, eh).
-		Watches(&appsv1.ReplicaSet{}, eh).
-		Watches(&corev1.Namespace{}, eh).
-		Watches(&corev1.ConfigMap{}, eh).
-		Watches(&corev1.PersistentVolumeClaim{}, eh).
-		Watches(&rbacv1.ClusterRoleBinding{}, eh).
-		Watches(&rbacv1.ClusterRole{}, eh).
-		Watches(&rbacv1.Role{}, eh).
-		Watches(&rbacv1.RoleBinding{}, eh).
-		Watches(&corev1.ServiceAccount{}, eh).
-		// shared filter
-		WithEventFilter(dashboardPredicates).
+		Watches(&appsv1.Deployment{}, eh, ef).
+		Watches(&appsv1.ReplicaSet{}, eh, ef).
+		Watches(&corev1.Namespace{}, eh, ef).
+		Watches(&corev1.ConfigMap{}, eh, ef).
+		Watches(&corev1.PersistentVolumeClaim{}, eh, ef).
+		Watches(&rbacv1.ClusterRoleBinding{}, eh, ef).
+		Watches(&rbacv1.ClusterRole{}, eh, ef).
+		Watches(&rbacv1.Role{}, eh, ef).
+		Watches(&rbacv1.RoleBinding{}, eh, ef).
+		Watches(&corev1.ServiceAccount{}, eh, ef).
 		// done
 		Complete(r)
 
@@ -192,31 +198,46 @@ func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Req
 	return nil
 }
 
-var dashboardPredicates = predicate.Funcs{
-	CreateFunc: func(e event.CreateEvent) bool {
-		// Cannot use Kind, since Kind is empty for e.Object
-		return e.Object.GetName() == componentsv1.DashboardInstanceName
-	},
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		if e.Object.GetName() == componentsv1.DashboardInstanceName {
+func dashboardWatchPredicate(componentName string) predicate.Funcs {
+	label := labels.ODH.Component(componentName)
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
 			return true
-		}
-		labelList := e.Object.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
-			return true
-		}
-		return false
-	},
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		if e.ObjectOld.GetName() == "default-dashboard" {
-			return true
-		}
-		labelList := e.ObjectOld.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
-			return true
-		}
-		return false
-	},
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			labelList := e.Object.GetLabels()
+
+			if value, exist := labelList[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := labelList[label]; exist && value == "true" {
+				return true
+			}
+
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldLabels := e.ObjectOld.GetLabels()
+
+			if value, exist := oldLabels[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := oldLabels[label]; exist && value == "true" {
+				return true
+			}
+
+			newLabels := e.ObjectNew.GetLabels()
+
+			if value, exist := newLabels[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := newLabels[label]; exist && value == "true" {
+				return true
+			}
+
+			return false
+		},
+	}
 }
 
 //nolint:unused
@@ -272,7 +293,7 @@ func (d Dashboard) initialize(ctx context.Context, rr *odhtypes.ReconciliationRe
 	}
 	DefaultPath = manifestMap[rr.Platform]
 
-	componentName := ComponentNameDownstream
+	componentName := ComponentNameUpstream
 	if rr.Platform == cluster.SelfManagedRhods || rr.Platform == cluster.ManagedRhods {
 		componentName = ComponentNameDownstream
 	}
@@ -333,61 +354,32 @@ func (d Dashboard) devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequ
 	return nil
 }
 
-func (d Dashboard) cleanupOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	oauthClientSecret := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "dashboard-oauth-client",
-			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
-		},
-	}
-
-	err := rr.Client.Delete(ctx, &oauthClientSecret)
-	if err != nil && !k8serr.IsNotFound(err) {
-		return fmt.Errorf("error deleting secret %s: %w", oauthClientSecret.Name, err)
-	}
-
-	return nil
-}
-
 func (d Dashboard) customizeResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	switch rr.Platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
 		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
-			return err
+			return fmt.Errorf("failed to update PodSecurityRolebinding for rhods-dashboard: %w", err)
 		}
-		// TODO this should be added to rr.Resources and let the final deploy action
-		//     to apply the resource to the cluster
-		//
-		// anaconda
-		blckownerDel := true
-		ctrlr := true
-		err := cluster.CreateSecret(
-			ctx,
-			rr.Client,
-			"anaconda-ce-access",
-			rr.DSCI.Spec.ApplicationsNamespace,
-			// set owner reference so it gets deleted when the Dashboard resource get deleted as well
-			cluster.WithOwnerReference(metav1.OwnerReference{
-				APIVersion:         rr.Instance.GetObjectKind().GroupVersionKind().GroupVersion().String(),
-				Kind:               rr.Instance.GetObjectKind().GroupVersionKind().Kind,
-				Name:               rr.Instance.GetName(),
-				UID:                rr.Instance.GetUID(),
-				Controller:         &ctrlr,
-				BlockOwnerDeletion: &blckownerDel,
-			}),
-			cluster.WithLabels(
-				labels.ComponentName, ComponentName,
-				labels.ODH.Component(ComponentNameUpstream), "true",
-				labels.K8SCommon.PartOf, ComponentNameUpstream,
-			),
-		)
+
+		err := rr.AddResource(&corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: corev1.SchemeGroupVersion.String(),
+				Kind:       "Secret",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "anaconda-ce-access",
+				Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+			},
+			Type: corev1.SecretTypeOpaque,
+		})
 
 		if err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
+
 	default:
 		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "odh-dashboard"); err != nil {
-			return err
+			return fmt.Errorf("failed to update PodSecurityRolebinding for odh-dashboard: %w", err)
 		}
 	}
 

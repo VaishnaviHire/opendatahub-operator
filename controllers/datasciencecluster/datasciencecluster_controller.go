@@ -36,6 +36,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -308,10 +309,24 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 		}
 	}
 
+	var err error
+
 	// Create the Dashboard instance
 	dashboard := dashboardctrl.CreateDashboardInstance(instance)
-	// Reconcile component
-	err := r.apply(ctx, instance, dashboard)
+	if !enabled {
+		err := r.Client.Delete(
+			ctx,
+			dashboard,
+			client.PropagationPolicy(metav1.DeletePropagationForeground),
+		)
+
+		if err != nil && k8serr.IsNotFound(err) {
+			err = nil
+		}
+	} else {
+		// Reconcile component
+		err = r.apply(ctx, instance, dashboard)
+	}
 
 	if err != nil {
 		r.Log.Error(err, "Failed to reconcile Dashboard component")
