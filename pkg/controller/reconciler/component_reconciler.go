@@ -119,6 +119,7 @@ func (r *ComponentReconciler[T]) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Execute actions
 	for _, action := range r.Actions {
+		l.Info("Executing action", "action", fmt.Sprintf("%T", action))
 		if err := action.Execute(ctx, &rr); err != nil {
 			l.Error(err, "Failed to execute action", "action", fmt.Sprintf("%T", action))
 			return ctrl.Result{}, err

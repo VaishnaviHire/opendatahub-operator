@@ -5,15 +5,15 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	machineryrt "k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
-
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 )
 
 type ResourceObject interface {
@@ -54,4 +54,15 @@ type ReconciliationRequest struct {
 	Platform  cluster.Platform
 	Manifests []ManifestInfo
 	Resources []unstructured.Unstructured
+}
+
+func (rr *ReconciliationRequest) AddResource(obj interface{}) error {
+	u, err := machineryrt.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		return err
+	}
+
+	rr.Resources = append(rr.Resources, unstructured.Unstructured{Object: u})
+
+	return nil
 }

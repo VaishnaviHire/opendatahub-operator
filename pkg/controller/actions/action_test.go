@@ -1,7 +1,6 @@
 package actions_test
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -11,6 +10,7 @@ import (
 	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
