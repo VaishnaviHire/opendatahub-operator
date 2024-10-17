@@ -314,15 +314,13 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 	// Create the Dashboard instance
 	dashboard := dashboardctrl.CreateDashboardInstance(instance)
 	if !enabled {
-		err := r.Client.Delete(
+		err = r.Client.Delete(
 			ctx,
 			dashboard,
 			client.PropagationPolicy(metav1.DeletePropagationForeground),
 		)
 
-		if err != nil && k8serr.IsNotFound(err) {
-			err = nil
-		}
+		err = client.IgnoreNotFound(err)
 	} else {
 		// Reconcile component
 		err = r.apply(ctx, instance, dashboard)

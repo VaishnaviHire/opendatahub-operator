@@ -112,6 +112,7 @@ func TestRenderResourcesAction(t *testing.T) {
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-forced.yaml"), []byte(testRenderResourcesForced))
 
 	client, err := NewFakeClient(
+		ctx,
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: gvk.Deployment.GroupVersion().String(),

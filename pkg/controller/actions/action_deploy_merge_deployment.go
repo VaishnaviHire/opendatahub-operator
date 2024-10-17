@@ -1,11 +1,12 @@
 package actions
 
 import (
+	"errors"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Unstructured) error {
-
 	containersPath := []string{"spec", "template", "spec", "containers"}
 	replicasPath := []string{"spec", "replicas"}
 
@@ -26,16 +27,26 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 
 	var sourceContainers []interface{}
 	if sc != nil {
-		sourceContainers = sc.([]interface{})
+		sourceContainers, ok = sc.([]interface{})
+		if !ok {
+			return errors.New("field is not a slice")
+		}
 	}
 
 	var targetContainers []interface{}
 	if tc != nil {
-		targetContainers = tc.([]interface{})
+		targetContainers, ok = tc.([]interface{})
+		if !ok {
+			return errors.New("field is not a slice")
+		}
 	}
 
 	for i := range sourceContainers {
-		m := sourceContainers[i].(map[string]interface{})
+		m, ok := sourceContainers[i].(map[string]interface{})
+		if !ok {
+			return errors.New("field is not a map")
+		}
+
 		name, ok := m["name"]
 		if !ok {
 			// can't deal with unnamed containers
@@ -47,11 +58,16 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 			r = make(map[string]interface{})
 		}
 
+		//nolint:forcetypeassert
 		resources[name.(string)] = r
 	}
 
 	for i := range targetContainers {
-		m := targetContainers[i].(map[string]interface{})
+		m, ok := targetContainers[i].(map[string]interface{})
+		if !ok {
+			return errors.New("field is not a map")
+		}
+
 		name, ok := m["name"]
 		if !ok {
 			// can't deal with unnamed containers
@@ -63,6 +79,7 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 			continue
 		}
 
+		//nolint:forcetypeassert
 		if len(nr.(map[string]interface{})) == 0 {
 			delete(m, "resources")
 		} else {
