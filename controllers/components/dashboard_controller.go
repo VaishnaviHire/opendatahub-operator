@@ -20,15 +20,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -40,12 +39,11 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhrec "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -63,6 +61,38 @@ var (
 	PathManagedDownstream   = PathDownstream + "/addon"
 	OverridePath            = ""
 	DefaultPath             = ""
+
+	adminGroups = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "rhods-admins",
+		cluster.ManagedRhods:     "dedicated-admins",
+		cluster.OpenDataHub:      "odh-admins",
+		cluster.Unknown:          "odh-admins",
+	}
+
+	sectionTitle = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "OpenShift Self Managed Services",
+		cluster.ManagedRhods:     "OpenShift Managed Services",
+		cluster.OpenDataHub:      "OpenShift Open Data Hub",
+		cluster.Unknown:          "OpenShift Open Data Hub",
+	}
+
+	baseConsoleURL = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: "https://rhods-dashboard-",
+		cluster.ManagedRhods:     "https://rhods-dashboard-",
+		cluster.OpenDataHub:      "https://odh-dashboard-",
+		cluster.Unknown:          "https://odh-dashboard-",
+	}
+
+	manifestPaths = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream + "/onprem",
+		cluster.ManagedRhods:     PathDownstream + "/addon",
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}
+
+	imagesMap = map[string]string{
+		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	}
 )
 
 func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -72,34 +102,60 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	}
 
 	actionCtx := logf.IntoContext(ctx, r.Log)
+	d := Dashboard{}
+
 	// Add Dashboard-specific actions
-	r.AddAction(&InitializeAction{actions.BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("initialize")}})
-	r.AddAction(&SupportDevFlagsAction{actions.BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("devFlags")}})
-	r.AddAction(&CleanupOAuthClientAction{actions.BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("cleanup")}})
-	r.AddAction(&DeployComponentAction{actions.BaseAction{Log: mgr.GetLogger().WithName("actions").WithName("deploy")}})
+	r.AddAction(actions.NewActionFn(actionCtx, d.initialize))
+	r.AddAction(actions.NewActionFn(actionCtx, d.devFlags))
+
+	r.AddAction(actions.NewRenderManifestsAction(
+		actionCtx,
+		actions.WithRenderManifestsAllowList(false),
+		actions.WithRenderManifestsOptions(
+			kustomize.WithEngineRenderOpts(
+				kustomize.WithLabel(labels.ComponentName, ComponentName),
+			),
+		),
+	))
+
+	r.AddAction(actions.NewActionFn(actionCtx, d.customizeResources))
+
+	r.AddAction(actions.NewDeployAction(
+		actionCtx,
+		actions.WithDeployedMode(actions.DeployModeSSA),
+		actions.WithDeployedResourceFieldOwner(ComponentName),
+	))
 
 	r.AddAction(actions.NewUpdateStatusAction(
 		actionCtx,
 		actions.WithUpdateStatusLabel(labels.ComponentName, ComponentName),
 	))
 
+	predicates := make([]predicate.Predicate, 0)
+	switch r.Platform {
+	case cluster.SelfManagedRhods, cluster.ManagedRhods:
+		predicates = append(predicates, dashboardWatchPredicate(ComponentNameUpstream))
+	default:
+		predicates = append(predicates, dashboardWatchPredicate(ComponentNameDownstream))
+	}
+
 	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
+	ef := builder.WithPredicates(predicates...)
 
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&componentsv1.Dashboard{}).
 		// dependants
-		Watches(&appsv1.Deployment{}, eh).
-		Watches(&appsv1.ReplicaSet{}, eh).
-		Watches(&corev1.Namespace{}, eh).
-		Watches(&corev1.ConfigMap{}, eh).
-		Watches(&corev1.PersistentVolumeClaim{}, eh).
-		Watches(&rbacv1.ClusterRoleBinding{}, eh).
-		Watches(&rbacv1.ClusterRole{}, eh).
-		Watches(&rbacv1.Role{}, eh).
-		Watches(&rbacv1.RoleBinding{}, eh).
-		Watches(&corev1.ServiceAccount{}, eh).
-		// shared filter
-		WithEventFilter(dashboardPredicates).
+		Watches(&appsv1.Deployment{}, eh, ef).
+		Watches(&appsv1.ReplicaSet{}, eh, ef).
+		Watches(&corev1.Namespace{}, eh, ef).
+		Watches(&corev1.ConfigMap{}, eh, ef).
+		Watches(&corev1.PersistentVolumeClaim{}, eh, ef).
+		Watches(&rbacv1.ClusterRoleBinding{}, eh, ef).
+		Watches(&rbacv1.ClusterRole{}, eh, ef).
+		Watches(&rbacv1.Role{}, eh, ef).
+		Watches(&rbacv1.RoleBinding{}, eh, ef).
+		Watches(&corev1.ServiceAccount{}, eh, ef).
+		// done
 		Complete(r)
 
 	if err != nil {
@@ -165,108 +221,110 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
 func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Request {
-	if a.GetLabels()["app.opendatahub.io/dashboard"] == "true" {
+	if a.GetLabels()[labels.ODH.Component(ComponentNameUpstream)] == "true" || a.GetLabels()[labels.ODH.Component(ComponentNameDownstream)] == "true" {
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: componentsv1.DashboardInstanceName},
 		}}
 	}
+
 	return nil
 }
 
-var dashboardPredicates = predicate.Funcs{
-	CreateFunc: func(e event.CreateEvent) bool {
-		return e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind
-	},
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		if e.Object.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
+func dashboardWatchPredicate(componentName string) predicate.Funcs {
+	label := labels.ODH.Component(componentName)
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
 			return true
-		}
-		labelList := e.Object.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
-			return true
-		}
-		return false
-	},
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		if e.ObjectOld.GetObjectKind().GroupVersionKind().Kind == gvk.Dashboard.Kind {
-			return true
-		}
-		labelList := e.ObjectOld.GetLabels()
-		if value, exist := labelList[labels.ODH.Component(ComponentNameUpstream)]; exist && value == "true" {
-			return true
-		}
-		return false
-	},
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			labelList := e.Object.GetLabels()
+
+			if value, exist := labelList[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := labelList[label]; exist && value == "true" {
+				return true
+			}
+
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldLabels := e.ObjectOld.GetLabels()
+
+			if value, exist := oldLabels[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := oldLabels[label]; exist && value == "true" {
+				return true
+			}
+
+			newLabels := e.ObjectNew.GetLabels()
+
+			if value, exist := newLabels[labels.ComponentName]; exist && value == ComponentName {
+				return true
+			}
+			if value, exist := newLabels[label]; exist && value == "true" {
+				return true
+			}
+
+			return false
+		},
+	}
 }
 
-func updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
-	adminGroups := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "rhods-admins",
-		cluster.ManagedRhods:     "dedicated-admins",
-		cluster.OpenDataHub:      "odh-admins",
-		cluster.Unknown:          "odh-admins",
-	}[platform]
+// TODO added only to avoid name collision
 
-	sectionTitle := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "OpenShift Self Managed Services",
-		cluster.ManagedRhods:     "OpenShift Managed Services",
-		cluster.OpenDataHub:      "OpenShift Open Data Hub",
-		cluster.Unknown:          "OpenShift Open Data Hub",
-	}[platform]
+type Dashboard struct{}
 
+func (d Dashboard) updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
 	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
 	}
-	consoleURL := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		cluster.ManagedRhods:     "https://rhods-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		cluster.OpenDataHub:      "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		cluster.Unknown:          "https://odh-dashboard-" + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-	}[platform]
 
 	return map[string]string{
-		"admin_groups":  adminGroups,
-		"dashboard-url": consoleURL,
-		"section-title": sectionTitle,
+		"admin_groups":  adminGroups[platform],
+		"dashboard-url": baseConsoleURL[platform] + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		"section-title": sectionTitle[platform],
 	}, nil
 }
 
-// Action implementations
-
-type InitializeAction struct {
-	actions.BaseAction
-}
-
-func (a *InitializeAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func (d Dashboard) initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Implement initialization logic
 	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
 
-	imageParamMap := map[string]string{
-		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	componentName := ComponentNameUpstream
+	if rr.Platform == cluster.SelfManagedRhods || rr.Platform == cluster.ManagedRhods {
+		componentName = ComponentNameDownstream
 	}
-	manifestMap := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathDownstream + "/onprem",
-		cluster.ManagedRhods:     PathDownstream + "/addon",
-		cluster.OpenDataHub:      PathUpstream,
-		cluster.Unknown:          PathUpstream,
+
+	rr.Manifests = []odhtypes.ManifestInfo{{
+		Path:       manifestPaths[rr.Platform],
+		ContextDir: "",
+		SourcePath: "",
+		RenderOpts: []kustomize.RenderOptsFn{
+			kustomize.WithLabel(labels.ODH.Component(componentName), "true"),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
+		},
+	}}
+
+	if err := deploy.ApplyParams(rr.Manifests[0].ManifestsPath(), imagesMap); err != nil {
+		log.Error(err, "failed to update image", "path", rr.Manifests[0].ManifestsPath())
 	}
-	DefaultPath = manifestMap[rr.Platform]
 
-	rr.Manifests = manifestMap
+	extraParamsMap, err := d.updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
+	if err != nil {
+		return errors.New("failed to set variable for extraParamsMap")
+	}
 
-	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", DefaultPath)
+	if err := deploy.ApplyParams(rr.Manifests[0].ManifestsPath(), nil, extraParamsMap); err != nil {
+		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[0].ManifestsPath(), err)
 	}
 
 	return nil
 }
 
-type SupportDevFlagsAction struct {
-	actions.BaseAction
-}
-
-func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func (d Dashboard) devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	dashboard, ok := rr.Instance.(*componentsv1.Dashboard)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentsv1.Dashboard)", rr.Instance)
@@ -283,126 +341,43 @@ func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 			return err
 		}
 		if manifestConfig.SourcePath != "" {
-			rr.Manifests[rr.Platform] = filepath.Join(deploy.DefaultManifestPath, ComponentNameUpstream, manifestConfig.SourcePath)
+			rr.Manifests[0].Path = deploy.DefaultManifestPath
+			rr.Manifests[0].ContextDir = ComponentNameUpstream
+			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
-	}
-
-	if rr.DSCI.Spec.DevFlags != nil {
-		mode := rr.DSCI.Spec.DevFlags.LogMode
-		a.Log = ctrlogger.NewNamedLogger(logf.FromContext(ctx), ComponentName, mode)
 	}
 
 	return nil
 }
 
-type CleanupOAuthClientAction struct {
-	actions.BaseAction
-}
-
-func (a *CleanupOAuthClientAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Remove previous oauth-client secrets
-	// Check if component is going from state of `Not Installed --> Installed`
-	// Assumption: Component is currently set to enabled
-	name := "dashboard-oauth-client"
-
-	// r.Log.Info("Cleanup any left secret")
-	// Delete client secrets from previous installation
-	oauthClientSecret := &corev1.Secret{}
-	err := rr.Client.Get(ctx, client.ObjectKey{
-		Namespace: rr.DSCI.Spec.ApplicationsNamespace,
-		Name:      name,
-	}, oauthClientSecret)
-	if err != nil {
-		if !k8serr.IsNotFound(err) {
-			return fmt.Errorf("error getting secret %s: %w", name, err)
-		}
-	} else {
-		if err := rr.Client.Delete(ctx, oauthClientSecret); err != nil {
-			return fmt.Errorf("error deleting secret %s: %w", name, err)
-		}
-		// r.Log.Info("successfully deleted secret", "secret", name)
-	}
-
-	return nil
-}
-
-type DeployComponentAction struct {
-	actions.BaseAction
-}
-
-func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Implement component deployment logic
-	// 1. platform specific RBAC
-	if rr.Platform == cluster.OpenDataHub || rr.Platform == "" {
-		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "odh-dashboard"); err != nil {
-			return err
-		}
-	} else {
-		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
-			return err
-		}
-	}
-
-	// 2. Append or Update variable for component to consume
-	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
-	if err != nil {
-		return errors.New("failed to set variable for extraParamsMap")
-	}
-
-	// 3. update params.env regardless devFlags is provided of not
-	// We need this for downstream
-	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
-		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[rr.Platform], err)
-	}
-
-	path := rr.Manifests[rr.Platform]
-	name := ComponentNameUpstream
-
-	// common: Deploy odh-dashboard manifests
-	// TODO: check if we can have the same component name odh-dashboard for both, or still keep rhods-dashboard for RHOAI
+func (d Dashboard) customizeResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	switch rr.Platform {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
-		// anaconda
-		blckownerDel := true
-		ctrlr := true
-		err := cluster.CreateSecret(
-			ctx,
-			rr.Client,
-			"anaconda-ce-access",
-			rr.DSCI.Spec.ApplicationsNamespace,
-			// set owner reference so it gets deleted when the Dashboard resource get deleted as well
-			cluster.WithOwnerReference(metav1.OwnerReference{
-				APIVersion:         rr.Instance.GetObjectKind().GroupVersionKind().GroupVersion().String(),
-				Kind:               rr.Instance.GetObjectKind().GroupVersionKind().Kind,
-				Name:               rr.Instance.GetName(),
-				UID:                rr.Instance.GetUID(),
-				Controller:         &ctrlr,
-				BlockOwnerDeletion: &blckownerDel,
-			}),
-			cluster.WithLabels(
-				labels.ComponentName, ComponentName,
-				labels.ODH.Component(name), "true",
-				labels.K8SCommon.PartOf, name,
-			),
-		)
+		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
+			return fmt.Errorf("failed to update PodSecurityRolebinding for rhods-dashboard: %w", err)
+		}
+
+		err := rr.AddResource(&corev1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: corev1.SchemeGroupVersion.String(),
+				Kind:       "Secret",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "anaconda-ce-access",
+				Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+			},
+			Type: corev1.SecretTypeOpaque,
+		})
 
 		if err != nil {
 			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 		}
 
-		name = ComponentNameDownstream
 	default:
+		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "odh-dashboard"); err != nil {
+			return fmt.Errorf("failed to update PodSecurityRolebinding for odh-dashboard: %w", err)
+		}
 	}
-
-	err = deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{
-		labels.ComponentName: ComponentName,
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to apply manifests from %s: %w", name, err)
-	}
-
-	a.Log.Info("apply manifests done")
 
 	return nil
 }
