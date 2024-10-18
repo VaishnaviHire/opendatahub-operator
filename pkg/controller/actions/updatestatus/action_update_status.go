@@ -1,4 +1,4 @@
-package actions
+package updatestatus
 
 import (
 	"context"
@@ -8,40 +8,38 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 const (
-	UpdateStatusActionName    = "update-status"
+	ActionName                = "update-status"
 	DeploymentsNotReadyReason = "DeploymentsNotReady"
 	ReadyReason               = "Ready"
 )
 
-type UpdateStatusAction struct {
-	BaseAction
+type Action struct {
 	labels map[string]string
 }
 
-type UpdateStatusActionOpts func(*UpdateStatusAction)
+type ActionOpts func(*Action)
 
-func WithUpdateStatusLabel(k string, v string) UpdateStatusActionOpts {
-	return func(action *UpdateStatusAction) {
+func WithSelectorLabel(k string, v string) ActionOpts {
+	return func(action *Action) {
 		action.labels[k] = v
 	}
 }
 
-func WithUpdateStatusLabels(values map[string]string) UpdateStatusActionOpts {
-	return func(action *UpdateStatusAction) {
+func WithSelectorLabels(values map[string]string) ActionOpts {
+	return func(action *Action) {
 		for k, v := range values {
 			action.labels[k] = v
 		}
 	}
 }
 
-func (a *UpdateStatusAction) Execute(ctx context.Context, rr *types.ReconciliationRequest) error {
+func (a *Action) Execute(ctx context.Context, rr *types.ReconciliationRequest) error {
 	if len(a.labels) == 0 {
 		return nil
 	}
@@ -95,11 +93,8 @@ func (a *UpdateStatusAction) Execute(ctx context.Context, rr *types.Reconciliati
 	return nil
 }
 
-func NewUpdateStatusAction(ctx context.Context, opts ...UpdateStatusActionOpts) *UpdateStatusAction {
-	action := UpdateStatusAction{
-		BaseAction: BaseAction{
-			Log: log.FromContext(ctx).WithName(ActionGroup).WithName(UpdateStatusActionName),
-		},
+func New(opts ...ActionOpts) *Action {
+	action := Action{
 		labels: map[string]string{},
 	}
 

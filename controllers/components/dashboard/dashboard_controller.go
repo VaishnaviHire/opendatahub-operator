@@ -18,31 +18,27 @@ package dashboard
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	componentsv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	odhrec "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -53,14 +49,16 @@ const (
 
 var (
 	ComponentNameUpstream = ComponentName
-	PathUpstream          = deploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/odh"
+	PathUpstream          = odhdeploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/odh"
 
 	ComponentNameDownstream = "rhods-dashboard"
-	PathDownstream          = deploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/rhoai"
+	PathDownstream          = odhdeploy.DefaultManifestPath + "/" + ComponentNameUpstream + "/rhoai"
 	PathSelfDownstream      = PathDownstream + "/onprem"
 	PathManagedDownstream   = PathDownstream + "/addon"
 	OverridePath            = ""
 	DefaultPath             = ""
+
+	dashboardInstanceID = types.NamespacedName{Name: componentsv1.DashboardInstanceName}
 
 	adminGroups = map[cluster.Platform]string{
 		cluster.SelfManagedRhods: "rhods-admins",
@@ -94,90 +92,6 @@ var (
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
 )
-
-func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	r, err := odhrec.NewComponentReconciler[*componentsv1.Dashboard](ctx, mgr, ComponentName)
-	if err != nil {
-		return err
-	}
-
-	actionCtx := logf.IntoContext(ctx, r.Log)
-	d := Dashboard{}
-
-	// Add Dashboard-specific actions
-	r.AddAction(actions.NewActionFn(actionCtx, d.initialize))
-	r.AddAction(actions.NewActionFn(actionCtx, d.devFlags))
-
-	r.AddAction(actions.NewRenderManifestsAction(
-		actionCtx,
-		actions.WithRenderManifestsOptions(
-			kustomize.WithEngineRenderOpts(
-				kustomize.WithLabel(labels.ComponentName, ComponentName),
-			),
-		),
-	))
-
-	r.AddAction(actions.NewActionFn(actionCtx, d.customizeResources))
-
-	r.AddAction(actions.NewDeployAction(
-		actionCtx,
-		actions.WithDeployedMode(actions.DeployModeSSA),
-		actions.WithDeployedResourceFieldOwner(ComponentName),
-	))
-
-	r.AddAction(actions.NewUpdateStatusAction(
-		actionCtx,
-		actions.WithUpdateStatusLabel(labels.ComponentName, ComponentName),
-	))
-
-	predicates := make([]predicate.Predicate, 0)
-	switch r.Platform {
-	case cluster.SelfManagedRhods, cluster.ManagedRhods:
-		predicates = append(predicates, dashboardWatchPredicate(ComponentNameUpstream))
-	default:
-		predicates = append(predicates, dashboardWatchPredicate(ComponentNameDownstream))
-	}
-
-	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
-	ef := builder.WithPredicates(predicates...)
-
-	err = ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1.Dashboard{}).
-		// dependants
-		Watches(&appsv1.Deployment{}, eh, ef).
-		Watches(&appsv1.ReplicaSet{}, eh, ef).
-		Watches(&corev1.Namespace{}, eh, ef).
-		Watches(&corev1.ConfigMap{}, eh, ef).
-		Watches(&corev1.PersistentVolumeClaim{}, eh, ef).
-		Watches(&rbacv1.ClusterRoleBinding{}, eh, ef).
-		Watches(&rbacv1.ClusterRole{}, eh, ef).
-		Watches(&rbacv1.Role{}, eh, ef).
-		Watches(&rbacv1.RoleBinding{}, eh, ef).
-		Watches(&corev1.ServiceAccount{}, eh, ef).
-		// done
-		Complete(r)
-
-	if err != nil {
-		return fmt.Errorf("could not create the dashboard controller: %w", err)
-	}
-
-	return nil
-}
-
-func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
-	return &componentsv1.Dashboard{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Dashboard",
-			APIVersion: "components.opendatahub.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentsv1.DashboardInstanceName,
-		},
-		Spec: componentsv1.DashboardSpec{
-			DSCDashboard: dsc.Spec.Components.Dashboard,
-		},
-	}
-}
 
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.opendatahub.io,resources=dashboards/status,verbs=get;update;patch
@@ -219,11 +133,73 @@ func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashbo
 
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
+func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	predicates := make([]predicate.Predicate, 0)
+	switch cluster.GetRelease().Name {
+	case cluster.SelfManagedRhods, cluster.ManagedRhods:
+		predicates = append(predicates, dashboardWatchPredicate(ComponentNameUpstream))
+	default:
+		predicates = append(predicates, dashboardWatchPredicate(ComponentNameDownstream))
+	}
+
+	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
+	ef := builder.WithPredicates(predicates...)
+
+	forOpts := builder.WithPredicates(predicate.Or(
+		predicate.GenerationChangedPredicate{},
+		predicate.LabelChangedPredicate{},
+		predicate.AnnotationChangedPredicate{},
+	))
+
+	_, err := odhrec.ComponentReconcilerFor[*componentsv1.Dashboard](mgr, &componentsv1.Dashboard{}, forOpts).
+		// operands
+		Watches(&appsv1.Deployment{}, eh, ef).
+		Watches(&appsv1.ReplicaSet{}, eh, ef).
+		Watches(&corev1.Namespace{}, eh, ef).
+		Watches(&corev1.ConfigMap{}, eh, ef).
+		Watches(&corev1.PersistentVolumeClaim{}, eh, ef).
+		Watches(&rbacv1.ClusterRoleBinding{}, eh, ef).
+		Watches(&rbacv1.ClusterRole{}, eh, ef).
+		Watches(&rbacv1.Role{}, eh, ef).
+		Watches(&rbacv1.RoleBinding{}, eh, ef).
+		Watches(&corev1.ServiceAccount{}, eh, ef).
+		// misc
+		WithComponentName(ComponentName).
+		// actions
+		WithActionFn(initialize).
+		WithActionFn(devFlags).
+		WithAction(render.New(
+			render.WithManifestsOptions(
+				kustomize.WithEngineRenderOpts(
+					kustomize.WithLabel(labels.ComponentName, ComponentName),
+				),
+			),
+		)).
+		WithActionFn(customizeResources).
+		WithAction(deploy.New(
+			deploy.WithMode(deploy.ModeSSA),
+			deploy.WithFieldOwner(ComponentName),
+		)).
+		WithAction(updatestatus.New(
+			updatestatus.WithSelectorLabel(labels.ComponentName, ComponentName),
+		)).
+		Build(ctx)
+
+	if err != nil {
+		return fmt.Errorf("could not create the dashboard controller: %w", err)
+	}
+
+	return nil
+}
+
 func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Request {
-	if a.GetLabels()[labels.ODH.Component(ComponentNameUpstream)] == "true" || a.GetLabels()[labels.ODH.Component(ComponentNameDownstream)] == "true" {
-		return []reconcile.Request{{
-			NamespacedName: types.NamespacedName{Name: componentsv1.DashboardInstanceName},
-		}}
+	switch {
+	case a.GetLabels()[labels.ODH.Component(ComponentNameUpstream)] == "true":
+		return []reconcile.Request{{NamespacedName: dashboardInstanceID}}
+	case a.GetLabels()[labels.ODH.Component(ComponentNameDownstream)] == "true":
+		return []reconcile.Request{{NamespacedName: dashboardInstanceID}}
+	case a.GetLabels()[labels.ComponentName] == ComponentName:
+		return []reconcile.Request{{NamespacedName: dashboardInstanceID}}
 	}
 
 	return nil
@@ -269,114 +245,4 @@ func dashboardWatchPredicate(componentName string) predicate.Funcs {
 			return false
 		},
 	}
-}
-
-// TODO added only to avoid name collision
-
-type Dashboard struct{}
-
-func (d Dashboard) updateKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
-	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
-	if err != nil {
-		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
-	}
-
-	return map[string]string{
-		"admin_groups":  adminGroups[platform],
-		"dashboard-url": baseConsoleURL[platform] + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		"section-title": sectionTitle[platform],
-	}, nil
-}
-
-func (d Dashboard) initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Implement initialization logic
-	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
-
-	componentName := ComponentNameUpstream
-	if rr.Platform == cluster.SelfManagedRhods || rr.Platform == cluster.ManagedRhods {
-		componentName = ComponentNameDownstream
-	}
-
-	rr.Manifests = []odhtypes.ManifestInfo{{
-		Path:       manifestPaths[rr.Platform],
-		ContextDir: "",
-		SourcePath: "",
-		RenderOpts: []kustomize.RenderOptsFn{
-			kustomize.WithLabel(labels.ODH.Component(componentName), "true"),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
-		},
-	}}
-
-	if err := deploy.ApplyParams(rr.Manifests[0].ManifestsPath(), imagesMap); err != nil {
-		log.Error(err, "failed to update image", "path", rr.Manifests[0].ManifestsPath())
-	}
-
-	extraParamsMap, err := d.updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
-	if err != nil {
-		return errors.New("failed to set variable for extraParamsMap")
-	}
-
-	if err := deploy.ApplyParams(rr.Manifests[0].ManifestsPath(), nil, extraParamsMap); err != nil {
-		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[0].ManifestsPath(), err)
-	}
-
-	return nil
-}
-
-func (d Dashboard) devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	dashboard, ok := rr.Instance.(*componentsv1.Dashboard)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentsv1.Dashboard)", rr.Instance)
-	}
-
-	if dashboard.Spec.DevFlags == nil {
-		return nil
-	}
-	// Implement devflags support logic
-	// If dev flags are set, update default manifests path
-	if len(dashboard.Spec.DevFlags.Manifests) != 0 {
-		manifestConfig := dashboard.Spec.DevFlags.Manifests[0]
-		if err := deploy.DownloadManifests(ctx, ComponentNameUpstream, manifestConfig); err != nil {
-			return err
-		}
-		if manifestConfig.SourcePath != "" {
-			rr.Manifests[0].Path = deploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = ComponentNameUpstream
-			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
-		}
-	}
-
-	return nil
-}
-
-func (d Dashboard) customizeResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	switch rr.Platform {
-	case cluster.SelfManagedRhods, cluster.ManagedRhods:
-		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "rhods-dashboard"); err != nil {
-			return fmt.Errorf("failed to update PodSecurityRolebinding for rhods-dashboard: %w", err)
-		}
-
-		err := rr.AddResource(&corev1.Secret{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: corev1.SchemeGroupVersion.String(),
-				Kind:       "Secret",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "anaconda-ce-access",
-				Namespace: rr.DSCI.Spec.ApplicationsNamespace,
-			},
-			Type: corev1.SecretTypeOpaque,
-		})
-
-		if err != nil {
-			return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
-		}
-
-	default:
-		if err := cluster.UpdatePodSecurityRolebinding(ctx, rr.Client, rr.DSCI.Spec.ApplicationsNamespace, "odh-dashboard"); err != nil {
-			return fmt.Errorf("failed to update PodSecurityRolebinding for odh-dashboard: %w", err)
-		}
-	}
-
-	return nil
 }

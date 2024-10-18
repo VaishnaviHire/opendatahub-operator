@@ -1,47 +1,45 @@
-package actions
+package deleteresource
 
 import (
 	"context"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 const (
-	DeleteResourcesActionName = "delete-resources"
+	ActionName = "delete-resources"
 )
 
-type DeleteResourcesAction struct {
-	BaseAction
+type Action struct {
 	types  []client.Object
 	labels map[string]string
 }
 
-type DeleteResourcesActionOpts func(*DeleteResourcesAction)
+type ActionOpts func(*Action)
 
-func WithDeleteResourcesTypes(values ...client.Object) DeleteResourcesActionOpts {
-	return func(action *DeleteResourcesAction) {
+func WithDeleteResourcesTypes(values ...client.Object) ActionOpts {
+	return func(action *Action) {
 		action.types = append(action.types, values...)
 	}
 }
 
-func WithDeleteResourcesLabel(k string, v string) DeleteResourcesActionOpts {
-	return func(action *DeleteResourcesAction) {
+func WithDeleteResourcesLabel(k string, v string) ActionOpts {
+	return func(action *Action) {
 		action.labels[k] = v
 	}
 }
 
-func WithDeleteResourcesLabels(values map[string]string) DeleteResourcesActionOpts {
-	return func(action *DeleteResourcesAction) {
+func WithDeleteResourcesLabels(values map[string]string) ActionOpts {
+	return func(action *Action) {
 		for k, v := range values {
 			action.labels[k] = v
 		}
 	}
 }
 
-func (r *DeleteResourcesAction) Execute(ctx context.Context, rr *types.ReconciliationRequest) error {
+func (r *Action) Execute(ctx context.Context, rr *types.ReconciliationRequest) error {
 	for i := range r.types {
 		opts := make([]client.DeleteAllOfOption, 0)
 
@@ -67,11 +65,8 @@ func (r *DeleteResourcesAction) Execute(ctx context.Context, rr *types.Reconcili
 	return nil
 }
 
-func NewDeleteResourcesAction(ctx context.Context, opts ...DeleteResourcesActionOpts) *DeleteResourcesAction {
-	action := DeleteResourcesAction{
-		BaseAction: BaseAction{
-			Log: log.FromContext(ctx).WithName(ActionGroup).WithName(DeleteResourcesActionName),
-		},
+func New(opts ...ActionOpts) *Action {
+	action := Action{
 		types:  make([]client.Object, 0),
 		labels: map[string]string{},
 	}

@@ -1,4 +1,4 @@
-package actions_test
+package deploy_test
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -75,7 +75,7 @@ func TestMergeDeploymentsOverride(t *testing.T) {
 	src := unstructured.Unstructured{Object: source}
 	trg := unstructured.Unstructured{Object: target}
 
-	err = actions.MergeDeployments(&src, &trg)
+	err = deploy.MergeDeployments(&src, &trg)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(trg).Should(And(
@@ -135,7 +135,7 @@ func TestMergeDeploymentsRemove(t *testing.T) {
 	src := unstructured.Unstructured{Object: source}
 	trg := unstructured.Unstructured{Object: target}
 
-	err = actions.MergeDeployments(&src, &trg)
+	err = deploy.MergeDeployments(&src, &trg)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	g.Expect(trg).Should(And(

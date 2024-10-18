@@ -1,34 +1,30 @@
-package actions
+package render
 
 import (
 	"context"
-
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 )
 
 const (
-	RenderManifestsActionName = "render-manifests"
+	ActionName = "render-manifests"
 )
 
-type RenderManifestsAction struct {
-	BaseAction
-
+type Action struct {
 	keOpts []kustomize.EngineOptsFn
 	ke     *kustomize.Engine
 }
 
-type RenderManifestsActionOpts func(*RenderManifestsAction)
+type ActionOpts func(*Action)
 
-func WithRenderManifestsOptions(values ...kustomize.EngineOptsFn) RenderManifestsActionOpts {
-	return func(action *RenderManifestsAction) {
+func WithManifestsOptions(values ...kustomize.EngineOptsFn) ActionOpts {
+	return func(action *Action) {
 		action.keOpts = append(action.keOpts, values...)
 	}
 }
 
-func (r *RenderManifestsAction) Execute(ctx context.Context, rr *types.ReconciliationRequest) error {
+func (r *Action) Execute(_ context.Context, rr *types.ReconciliationRequest) error {
 	for i := range rr.Manifests {
 		opts := make([]kustomize.RenderOptsFn, 0, len(rr.Manifests[i].RenderOpts)+3)
 		opts = append(opts, kustomize.WithNamespace(rr.DSCI.Spec.ApplicationsNamespace))
@@ -49,12 +45,8 @@ func (r *RenderManifestsAction) Execute(ctx context.Context, rr *types.Reconcili
 	return nil
 }
 
-func NewRenderManifestsAction(ctx context.Context, opts ...RenderManifestsActionOpts) *RenderManifestsAction {
-	action := RenderManifestsAction{
-		BaseAction: BaseAction{
-			Log: log.FromContext(ctx).WithName(ActionGroup).WithName(RenderManifestsActionName),
-		},
-	}
+func New(opts ...ActionOpts) *Action {
+	action := Action{}
 
 	for _, opt := range opts {
 		opt(&action)

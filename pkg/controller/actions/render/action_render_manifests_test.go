@@ -1,4 +1,4 @@
-package actions_test
+package render_test
 
 import (
 	"context"
@@ -6,18 +6,15 @@ import (
 	"testing"
 
 	"github.com/rs/xid"
-	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -111,55 +108,11 @@ func TestRenderResourcesAction(t *testing.T) {
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-unmanaged.yaml"), []byte(testRenderResourcesUnmanaged))
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-forced.yaml"), []byte(testRenderResourcesForced))
 
-	client, err := NewFakeClient(
-		ctx,
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-deployment-managed",
-				Namespace: ns,
-				Labels:    map[string]string{},
-			},
-		},
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-deployment-unmanaged",
-				Namespace: ns,
-				Annotations: map[string]string{
-					"opendatahub.io/managed": "false",
-				},
-			},
-		},
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-deployment-forced",
-				Namespace: ns,
-				Annotations: map[string]string{
-					"opendatahub.io/managed": "true",
-				},
-			},
-			Spec: appsv1.DeploymentSpec{
-				Replicas: ptr.To[int32](1),
-			},
-		},
-	)
-
+	client, err := fakeclient.New(ctx)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := actions.NewRenderManifestsAction(
-		ctx,
-		actions.WithRenderManifestsOptions(
+	action := render.New(
+		render.WithManifestsOptions(
 			kustomize.WithEngineFS(fs),
 			kustomize.WithEngineRenderOpts(
 				kustomize.WithAnnotations(map[string]string{
@@ -190,10 +143,8 @@ func TestRenderResourcesAction(t *testing.T) {
 	err = action.Execute(ctx, &rr)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// common customizations
 	g.Expect(rr.Resources).Should(And(
-		HaveLen(3),
+		HaveLen(4),
 		HaveEach(And(
 			jq.Match(`.metadata.namespace == "%s"`, ns),
 			jq.Match(`.metadata.labels."component.opendatahub.io/name" == "%s"`, "foo"),
@@ -201,22 +152,5 @@ func TestRenderResourcesAction(t *testing.T) {
 			jq.Match(`.metadata.annotations."platform.opendatahub.io/release" == "%s"`, "1.2.3"),
 			jq.Match(`.metadata.annotations."platform.opendatahub.io/type" == "%s"`, "managed"),
 		)),
-	))
-
-	// config map
-	g.Expect(rr.Resources[0]).Should(And(
-		jq.Match(`.metadata.name == "%s"`, "test-cm"),
-	))
-
-	// deployment managed
-	g.Expect(rr.Resources[1]).Should(And(
-		jq.Match(`.metadata.name == "%s"`, "test-deployment-managed"),
-		jq.Match(`.spec.template.spec.containers[0] | has("resources") | not`),
-	))
-
-	// deployment forced
-	g.Expect(rr.Resources[2]).Should(And(
-		jq.Match(`.metadata.name == "%s"`, "test-deployment-forced"),
-		jq.Match(`.spec.replicas == 3`),
 	))
 }

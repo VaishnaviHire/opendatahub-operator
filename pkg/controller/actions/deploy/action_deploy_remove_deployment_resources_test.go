@@ -1,9 +1,7 @@
-package actions_test
+package deploy_test
 
 import (
 	"testing"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -12,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -49,7 +47,7 @@ func TestMRemoveDeploymentsResources(t *testing.T) {
 
 	src := unstructured.Unstructured{Object: source}
 
-	err = actions.RemoveDeploymentsResources(&src)
+	err = deploy.RemoveDeploymentsResources(&src)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(src).Should(And(

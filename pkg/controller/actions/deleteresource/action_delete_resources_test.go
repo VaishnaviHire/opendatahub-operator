@@ -1,8 +1,10 @@
-package actions_test
+package deleteresource_test
 
 import (
 	"context"
 	"testing"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deleteresource"
 
 	"github.com/onsi/gomega/gstruct"
 	"github.com/rs/xid"
@@ -13,9 +15,10 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deleteresource"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
@@ -26,7 +29,7 @@ func TestDeleteResourcesAction(t *testing.T) {
 	ctx := context.Background()
 	ns := xid.New().String()
 
-	client, err := NewFakeClient(
+	client, err := fakeclient.New(
 		ctx,
 		&appsv1.Deployment{
 			TypeMeta: metav1.TypeMeta{
@@ -58,10 +61,9 @@ func TestDeleteResourcesAction(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := actions.NewDeleteResourcesAction(
-		ctx,
-		actions.WithDeleteResourcesTypes(&appsv1.Deployment{}),
-		actions.WithDeleteResourcesLabel(labels.K8SCommon.PartOf, "foo"))
+	action := deleteresource.New(
+		deleteresource.WithDeleteResourcesTypes(&appsv1.Deployment{}),
+		deleteresource.WithDeleteResourcesLabel(labels.K8SCommon.PartOf, "foo"))
 
 	err = action.Execute(ctx, &types.ReconciliationRequest{
 		Client:   client,
