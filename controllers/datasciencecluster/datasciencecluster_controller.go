@@ -309,7 +309,7 @@ func (r *DataScienceClusterReconciler) reconcileDashboardComponent(ctx context.C
 	}
 
 	// Create the Dashboard instance
-	dashboard := dashboardctrl.CreateDashboardInstance(instance)
+	dashboard := dashboardctrl.NewInstance(instance)
 	// Reconcile component
 	err := r.apply(ctx, instance, dashboard)
 

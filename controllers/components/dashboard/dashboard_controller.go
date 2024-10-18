@@ -44,7 +44,6 @@ import (
 	odhrec "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	ctrlogger "github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -108,7 +107,26 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	return nil
 }
 
-func CreateDashboardInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
+func Init(platform cluster.Platform) error {
+	imageParamMap := map[string]string{
+		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	}
+
+	DefaultPath = map[cluster.Platform]string{
+		cluster.SelfManagedRhods: PathDownstream + "/onprem",
+		cluster.ManagedRhods:     PathDownstream + "/addon",
+		cluster.OpenDataHub:      PathUpstream,
+		cluster.Unknown:          PathUpstream,
+	}[platform]
+
+	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", DefaultPath, err)
+	}
+
+	return nil
+}
+
+func NewInstance(dsc *dscv1.DataScienceCluster) *componentsv1.Dashboard {
 	return &componentsv1.Dashboard{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Dashboard",
@@ -239,24 +257,16 @@ type InitializeAction struct {
 }
 
 func (a *InitializeAction) Execute(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Implement initialization logic
-	log := logf.FromContext(ctx).WithName(ComponentNameUpstream)
-
-	imageParamMap := map[string]string{
-		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	// 2. Append or Update variable for component to consume
+	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
+	if err != nil {
+		return errors.New("failed to set variable for extraParamsMap")
 	}
-	manifestMap := map[cluster.Platform]string{
-		cluster.SelfManagedRhods: PathDownstream + "/onprem",
-		cluster.ManagedRhods:     PathDownstream + "/addon",
-		cluster.OpenDataHub:      PathUpstream,
-		cluster.Unknown:          PathUpstream,
-	}
-	DefaultPath = manifestMap[rr.Platform]
 
-	rr.Manifests = manifestMap
-
-	if err := deploy.ApplyParams(DefaultPath, imageParamMap); err != nil {
-		log.Error(err, "failed to update image", "path", DefaultPath)
+	// 3. update params.env regardless devFlags is provided of not
+	// We need this for downstream
+	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
+		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[rr.Platform], err)
 	}
 
 	return nil
@@ -285,11 +295,6 @@ func (a *SupportDevFlagsAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 		if manifestConfig.SourcePath != "" {
 			rr.Manifests[rr.Platform] = filepath.Join(deploy.DefaultManifestPath, ComponentNameUpstream, manifestConfig.SourcePath)
 		}
-	}
-
-	if rr.DSCI.Spec.DevFlags != nil {
-		mode := rr.DSCI.Spec.DevFlags.LogMode
-		a.Log = ctrlogger.NewNamedLogger(logf.FromContext(ctx), ComponentName, mode)
 	}
 
 	return nil
@@ -343,18 +348,6 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 		}
 	}
 
-	// 2. Append or Update variable for component to consume
-	extraParamsMap, err := updateKustomizeVariable(ctx, rr.Client, rr.Platform, &rr.DSCI.Spec)
-	if err != nil {
-		return errors.New("failed to set variable for extraParamsMap")
-	}
-
-	// 3. update params.env regardless devFlags is provided of not
-	// We need this for downstream
-	if err := deploy.ApplyParams(rr.Manifests[rr.Platform], nil, extraParamsMap); err != nil {
-		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[rr.Platform], err)
-	}
-
 	path := rr.Manifests[rr.Platform]
 	name := ComponentNameUpstream
 
@@ -394,7 +387,7 @@ func (a *DeployComponentAction) Execute(ctx context.Context, rr *odhtypes.Reconc
 	default:
 	}
 
-	err = deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{
+	err := deploy.DeployManifestsFromPathWithLabels(ctx, rr.Client, rr.Instance, path, rr.DSCI.Spec.ApplicationsNamespace, name, true, map[string]string{
 		labels.ComponentName: ComponentName,
 	})
 
