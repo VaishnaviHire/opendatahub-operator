@@ -148,10 +148,14 @@ spec:
                   - type
                   type: object
                 type: array
+              namespace:
+                type: string
               observedGeneration:
                 format: int64
                 type: integer
               phase:
+                type: string
+              url:
                 type: string
             required:
             - phase

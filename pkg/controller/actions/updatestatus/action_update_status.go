@@ -81,7 +81,7 @@ func (a *Action) Execute(ctx context.Context, rr *types.ReconciliationRequest) e
 		ObservedGeneration: s.ObservedGeneration,
 	}
 
-	if len(deployments.Items) > 0 && ready != len(deployments.Items) {
+	if len(deployments.Items) == 0 || (len(deployments.Items) > 0 && ready != len(deployments.Items)) {
 		conditionReady.Status = metav1.ConditionFalse
 		conditionReady.Reason = DeploymentsNotReadyReason
 

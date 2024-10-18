@@ -58,7 +58,7 @@ var (
 	OverridePath            = ""
 	DefaultPath             = ""
 
-	dashboardInstanceID = types.NamespacedName{Name: componentsv1.DashboardInstanceName}
+	dashboardID = types.NamespacedName{Name: componentsv1.DashboardInstanceName}
 
 	adminGroups = map[cluster.Platform]string{
 		cluster.SelfManagedRhods: "rhods-admins",
@@ -134,16 +134,17 @@ var (
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
 func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	predicates := make([]predicate.Predicate, 0)
+	var componentLabelPredicate predicate.Predicate
+	var componentEventHandler handler.EventHandler
+
 	switch cluster.GetRelease().Name {
 	case cluster.SelfManagedRhods, cluster.ManagedRhods:
-		predicates = append(predicates, dashboardWatchPredicate(ComponentNameUpstream))
+		componentLabelPredicate = dashboardWatchPredicate(ComponentNameUpstream)
+		componentEventHandler = watchDashboardResources(ComponentNameUpstream)
 	default:
-		predicates = append(predicates, dashboardWatchPredicate(ComponentNameDownstream))
+		componentLabelPredicate = dashboardWatchPredicate(ComponentNameDownstream)
+		componentEventHandler = watchDashboardResources(ComponentNameDownstream)
 	}
-
-	eh := handler.EnqueueRequestsFromMapFunc(watchDashboardResources)
-	ef := builder.WithPredicates(predicates...)
 
 	forOpts := builder.WithPredicates(predicate.Or(
 		predicate.GenerationChangedPredicate{},
@@ -153,16 +154,16 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 	_, err := odhrec.ComponentReconcilerFor[*componentsv1.Dashboard](mgr, &componentsv1.Dashboard{}, forOpts).
 		// operands
-		Watches(&appsv1.Deployment{}, eh, ef).
-		Watches(&appsv1.ReplicaSet{}, eh, ef).
-		Watches(&corev1.Namespace{}, eh, ef).
-		Watches(&corev1.ConfigMap{}, eh, ef).
-		Watches(&corev1.PersistentVolumeClaim{}, eh, ef).
-		Watches(&rbacv1.ClusterRoleBinding{}, eh, ef).
-		Watches(&rbacv1.ClusterRole{}, eh, ef).
-		Watches(&rbacv1.Role{}, eh, ef).
-		Watches(&rbacv1.RoleBinding{}, eh, ef).
-		Watches(&corev1.ServiceAccount{}, eh, ef).
+		Watches(&appsv1.Deployment{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&appsv1.ReplicaSet{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&corev1.Namespace{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&corev1.ConfigMap{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&corev1.PersistentVolumeClaim{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.ClusterRoleBinding{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.ClusterRole{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.Role{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&rbacv1.RoleBinding{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
+		Watches(&corev1.ServiceAccount{}, componentEventHandler, builder.WithPredicates(componentLabelPredicate)).
 		// misc
 		WithComponentName(ComponentName).
 		// actions
@@ -192,24 +193,25 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	return nil
 }
 
-func watchDashboardResources(_ context.Context, a client.Object) []reconcile.Request {
-	switch {
-	case a.GetLabels()[labels.ODH.Component(ComponentNameUpstream)] == "true":
-		return []reconcile.Request{{NamespacedName: dashboardInstanceID}}
-	case a.GetLabels()[labels.ODH.Component(ComponentNameDownstream)] == "true":
-		return []reconcile.Request{{NamespacedName: dashboardInstanceID}}
-	case a.GetLabels()[labels.ComponentName] == ComponentName:
-		return []reconcile.Request{{NamespacedName: dashboardInstanceID}}
-	}
+//nolint:ireturn
+func watchDashboardResources(componentName string) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, a client.Object) []reconcile.Request {
+		switch {
+		case a.GetLabels()[labels.ODH.Component(componentName)] == "true":
+			return []reconcile.Request{{NamespacedName: dashboardID}}
+		case a.GetLabels()[labels.ComponentName] == ComponentName:
+			return []reconcile.Request{{NamespacedName: dashboardID}}
+		}
 
-	return nil
+		return nil
+	})
 }
 
 func dashboardWatchPredicate(componentName string) predicate.Funcs {
 	label := labels.ODH.Component(componentName)
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return true
+			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			labelList := e.Object.GetLabels()

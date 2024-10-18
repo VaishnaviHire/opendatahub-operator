@@ -123,11 +123,11 @@ func (b *ComponentReconcilerBuilder[T]) Build(ctx context.Context) (*ComponentRe
 	}
 
 	for i := range b.actions {
-		r.AddAction(b.finalizers[i])
+		r.AddAction(b.actions[i])
 	}
 	for i := range b.finalizers {
 		r.AddFinalizer(b.finalizers[i])
 	}
 
-	return r, nil
+	return r, c.Complete(r)
 }

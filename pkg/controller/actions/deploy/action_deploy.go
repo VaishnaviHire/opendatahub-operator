@@ -92,9 +92,9 @@ func (r *Action) Execute(ctx context.Context, rr *odhTypes.ReconciliationRequest
 
 			switch r.deployMode {
 			case ModePatch:
-				err = r.apply(ctx, rr.Client, obj, old)
-			case ModeSSA:
 				err = r.patch(ctx, rr.Client, obj, old)
+			case ModeSSA:
+				err = r.apply(ctx, rr.Client, obj, old)
 			default:
 				err = fmt.Errorf("unsupported deploy mode %d", r.deployMode)
 			}

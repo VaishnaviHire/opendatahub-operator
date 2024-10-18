@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deleteresource"
-
 	"github.com/onsi/gomega/gstruct"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"

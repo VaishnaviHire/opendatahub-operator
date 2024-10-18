@@ -34,6 +34,17 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[0].ManifestsPath(), err)
 	}
 
+	// TODO: this should probably be moved to an higher level, added here
+	//       mainly for convenience since the route url is determined at
+	//       this stage
+	d, ok := rr.Instance.(*componentsv1.Dashboard)
+	if !ok {
+		return fmt.Errorf("instance is not of type *odhTypes.Dashboard")
+	}
+
+	d.Status.Namespace = rr.DSCI.Spec.ApplicationsNamespace
+	d.Status.URL = extraParamsMap["dashboard-url"]
+
 	return nil
 }
 
