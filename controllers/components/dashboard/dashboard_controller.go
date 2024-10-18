@@ -110,7 +110,6 @@ func NewDashboardReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 	r.AddAction(actions.NewRenderManifestsAction(
 		actionCtx,
-		actions.WithRenderManifestsAllowList(false),
 		actions.WithRenderManifestsOptions(
 			kustomize.WithEngineRenderOpts(
 				kustomize.WithLabel(labels.ComponentName, ComponentName),
